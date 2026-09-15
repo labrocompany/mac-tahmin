@@ -1,0 +1,15 @@
+[Unit]
+Description=Mac Tahmin Flask Application
+After=network.target
+
+[Service]
+Type=simple
+User=prime
+WorkingDirectory=/home/prime/mac-tahmin
+Environment="PATH=/home/prime/mac-tahmin/venv/bin"
+ExecStart=/home/prime/mac-tahmin/venv/bin/gunicorn --workers 3 --bind 0.0.0.0:8080 --timeout 120 app:app
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

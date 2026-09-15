@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hijri Takvim Maç Tahmin Sistemi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .main-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+        
+        .prediction-card {
+            background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .team-input {
+            position: relative;
+        }
+        
+        .team-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .team-suggestion {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .team-suggestion:hover {
+            background-color: #f8f9fa;
+        }
+        
+        .vs-icon {
+            font-size: 2rem;
+            color: #ff6b6b;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .calendar-toggle {
+            background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);
+            border: none;
+            color: white;
+            border-radius: 10px;
+            padding: 10px 20px;
+            margin: 5px;
+        }
+        
+        .calendar-toggle.active {
+            background: linear-gradient(45deg, #fa709a 0%, #fee140 100%);
+        }
+        
+        .predict-btn {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            border-radius: 15px;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .predict-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.3);
+        }
+        
+        .stats-card {
+            background: linear-gradient(45deg, #ff9a9e 0%, #fecfef 100%);
+            border-radius: 12px;
+            padding: 15px;
+            margin: 10px 0;
+            color: #333;
+        }
+        
+        .loading {
+            display: none;
+        }
+        
+        .loading.show {
+            display: block;
+        }
+        
+        .team-dropdown-item {
+            padding: 8px 16px !important;
+            font-size: 14px;
+            border-radius: 6px;
+            margin: 2px 8px;
+            transition: all 0.2s ease;
+        }
+        
+        .team-dropdown-item:hover {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%) !important;
+            color: white !important;
+            transform: translateX(3px);
+        }
+        
+        .dropdown-menu {
+            border: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            border-radius: 12px;
+        }
+        
+        .dropdown-toggle::after {
+            display: none;
+        }
+        
+        #team1-search, #team2-search {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        #team1-search:focus, #team2-search:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="main-container p-5">
+                    <!-- Header -->
+                    <div class="text-center mb-4">
+                        <h1 class="display-4 fw-bold text-primary">
+                            <i class="fas fa-calendar-alt"></i> 
+                            Hijri Takvim Maç Tahmin Sistemi
+                        </h1>
+                        <p class="lead text-muted">Tarihsel verilere dayalı akıllı maç tahmin sistemi</p>
+                    </div>
+
+                    <!-- Takım Seçimi -->
+                    <div class="row mb-4">
+                        <div class="col-md-5">
+                            <div class="team-input">
+                                <label class="form-label fw-bold">
+                                    <i class="fas fa-home text-success"></i> Ev Sahibi Takım
+                                </label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control form-control-lg" id="team1" 
+                                           placeholder="Takım adı yazın veya seçin..." autocomplete="off">
+                                    <button class="btn btn-outline-primary dropdown-toggle" type="button" 
+                                            id="team1-dropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-list"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end" id="team1-dropdown-menu" 
+                                        style="max-height: 300px; overflow-y: auto;">
+                                        <li><span class="dropdown-item-text">
+                                            <i class="fas fa-spinner fa-spin"></i> Takımlar yükleniyor...
+                                        </span></li>
+                                    </ul>
+                                </div>
+                                <div class="team-suggestions" id="team1-suggestions"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-2 text-center d-flex align-items-end justify-content-center">
+                            <div class="vs-icon">
+                                <i class="fas fa-sword-cross"></i>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-5">
+                            <div class="team-input">
+                                <label class="form-label fw-bold">
+                                    <i class="fas fa-plane text-warning"></i> Deplasman Takımı
+                                </label>
+                                <div class="input-group">
+                                    <input type="text" class="form-control form-control-lg" id="team2" 
+                                           placeholder="Takım adı yazın veya seçin..." autocomplete="off">
+                                    <button class="btn btn-outline-primary dropdown-toggle" type="button" 
+                                            id="team2-dropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-list"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end" id="team2-dropdown-menu"
+                                        style="max-height: 300px; overflow-y: auto;">
+                                        <li><span class="dropdown-item-text">
+                                            <i class="fas fa-spinner fa-spin"></i> Takımlar yükleniyor...
+                                        </span></li>
+                                    </ul>
+                                </div>
+                                <div class="team-suggestions" id="team2-suggestions"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Takvim Seçimi -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h5 class="fw-bold mb-3">
+                                <i class="fas fa-calendar"></i> Takvim Türü
+                            </h5>
+                            <div class="text-center">
+                                <button class="calendar-toggle active" id="hijri-toggle" data-calendar="hijri">
+                                    <i class="fas fa-moon"></i> Hijri Takvim
+                                </button>
+                                <button class="calendar-toggle" id="gregorian-toggle" data-calendar="gregorian">
+                                    <i class="fas fa-sun"></i> Miladi Takvim
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tarih Filtreleri -->
+                    <div class="row mb-4" id="date-filters">
+                        <!-- Hijri Filtreler -->
+                        <div id="hijri-filters" class="col-12">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-calendar-day"></i> Gün Filtresi (Her Ayın X. Günü)
+                                    </label>
+                                    <select class="form-select" id="day-filter">
+                                        <option value="">Tüm Günler</option>
+                                        <script>
+                                            for(let i = 1; i <= 30; i++) {
+                                                document.write(`<option value="${i}">${i}. Gün</option>`);
+                                            }
+                                        </script>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-calendar-alt"></i> Ay Filtresi
+                                    </label>
+                                    <select class="form-select" id="month-filter">
+                                        <option value="">Tüm Aylar</option>
+                                        <option value="1">Muharrem</option>
+                                        <option value="2">Safer</option>
+                                        <option value="3">Rebiülevvel</option>
+                                        <option value="4">Rebiülahir</option>
+                                        <option value="5">Cemaziyelevvel</option>
+                                        <option value="6">Cemaziyelahir</option>
+                                        <option value="7">Recep</option>
+                                        <option value="8">Şaban</option>
+                                        <option value="9">Ramazan</option>
+                                        <option value="10">Şevval</option>
+                                        <option value="11">Zilkade</option>
+                                        <option value="12">Zilhicce</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Miladi Filtreler (şimdilik gizli) -->
+                        <div id="gregorian-filters" class="col-12" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-calendar-day"></i> Gün Filtresi
+                                    </label>
+                                    <select class="form-select" id="gregorian-day-filter">
+                                        <option value="">Tüm Günler</option>
+                                        <script>
+                                            for(let i = 1; i <= 31; i++) {
+                                                document.write(`<option value="${i}">${i}. Gün</option>`);
+                                            }
+                                        </script>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label fw-bold">
+                                        <i class="fas fa-calendar-alt"></i> Ay Filtresi
+                                    </label>
+                                    <select class="form-select" id="gregorian-month-filter">
+                                        <option value="">Tüm Aylar</option>
+                                        <option value="1">Ocak</option>
+                                        <option value="2">Şubat</option>
+                                        <option value="3">Mart</option>
+                                        <option value="4">Nisan</option>
+                                        <option value="5">Mayıs</option>
+                                        <option value="6">Haziran</option>
+                                        <option value="7">Temmuz</option>
+                                        <option value="8">Ağustos</option>
+                                        <option value="9">Eylül</option>
+                                        <option value="10">Ekim</option>
+                                        <option value="11">Kasım</option>
+                                        <option value="12">Aralık</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tahmin Butonu -->
+                    <div class="text-center mb-4">
+                        <button class="predict-btn" id="predict-btn">
+                            <i class="fas fa-magic"></i> Maç Tahmini Yap
+                        </button>
+                        <div class="loading mt-3">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Yükleniyor...</span>
+                            </div>
+                            <p class="mt-2">Tahmin hesaplanıyor...</p>
+                        </div>
+                    </div>
+
+                    <!-- Sonuçlar -->
+                    <div id="results" style="display: none;">
+                        <div class="prediction-card">
+                            <h4 class="text-center mb-4">
+                                <i class="fas fa-crystal-ball"></i> Tahmin Sonucu
+                            </h4>
+                            <div id="prediction-content"></div>
+                        </div>
+
+                        <!-- Detaylı İstatistikler -->
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="stats-card">
+                                    <h6 class="fw-bold mb-3" id="team1-stats-title">Takım 1 İstatistikleri</h6>
+                                    <div id="team1-stats"></div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="stats-card">
+                                    <h6 class="fw-bold mb-3" id="team2-stats-title">Takım 2 İstatistikleri</h6>
+                                    <div id="team2-stats"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
