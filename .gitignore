@@ -4,6 +4,7 @@ out
 next-env.d.ts
 .DS_Store
 *.log
+.env
 .env*.local
 public/data
 .claude
