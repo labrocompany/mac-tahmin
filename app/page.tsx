@@ -22,12 +22,12 @@ function TeamStatsCard({ stats }: { stats: TeamStats | null }) {
   return (
     <div className="rounded-xl bg-gradient-to-br from-rose-100 to-pink-100 p-4">
       <h3 className="mb-3 font-bold">{stats.team} İstatistikleri</h3>
-      <div className="mb-2">📊 Toplam Maç: {stats.totalMatches}</div>
-      <div className="mb-2">🏆 Galibiyet: {stats.wins} (%{winRate})</div>
-      <div className="mb-2">🤝 Beraberlik: {stats.draws} (%{drawRate})</div>
-      <div className="mb-2">❌ Mağlubiyet: {stats.losses} (%{lossRate})</div>
+      <div className="mb-2">Toplam Maç: {stats.totalMatches}</div>
+      <div className="mb-2">Galibiyet: {stats.wins} (%{winRate})</div>
+      <div className="mb-2">Beraberlik: {stats.draws} (%{drawRate})</div>
+      <div className="mb-2">Mağlubiyet: {stats.losses} (%{lossRate})</div>
       <div className="mt-3 rounded-lg bg-white/70 p-2">
-        🎯 Başarı Oranı:{' '}
+        Başarı Oranı:{' '}
         <span className="rounded bg-indigo-600 px-2 py-1 font-bold text-white">
           %{stats.successRate.toFixed(1)}
         </span>
@@ -123,7 +123,7 @@ export default function Home() {
       <div className="rounded-3xl bg-white/95 p-6 shadow-2xl backdrop-blur md:p-10">
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-indigo-700 md:text-4xl">
-            📅 Hijri Takvim Maç Tahmin Sistemi
+            Hijri Takvim Maç Tahmin Sistemi
           </h1>
           <p className="mt-2 text-slate-500">Tarihsel verilere dayalı akıllı maç tahmin sistemi</p>
         </div>
@@ -137,16 +137,16 @@ export default function Home() {
           <>
             <div className="mb-6 grid grid-cols-1 items-end gap-4 md:grid-cols-11">
               <div className="md:col-span-5">
-                <TeamPicker label="Ev Sahibi Takım" icon="🏠" value={team1} onChange={setTeam1} teams={teams} />
+                <TeamPicker label="Ev Sahibi Takım" value={team1} onChange={setTeam1} teams={teams} />
               </div>
-              <div className="text-center text-2xl text-rose-500 md:col-span-1">⚔️</div>
+              <div className="text-center font-bold text-rose-500 md:col-span-1">VS</div>
               <div className="md:col-span-5">
-                <TeamPicker label="Deplasman Takımı" icon="✈️" value={team2} onChange={setTeam2} teams={teams} />
+                <TeamPicker label="Deplasman Takımı" value={team2} onChange={setTeam2} teams={teams} />
               </div>
             </div>
 
             <div className="mb-6 text-center">
-              <h2 className="mb-3 font-bold">📅 Takvim Türü</h2>
+              <h2 className="mb-3 font-bold">Takvim Türü</h2>
               <div className="flex justify-center gap-2">
                 <button
                   type="button"
@@ -157,7 +157,7 @@ export default function Home() {
                   }`}
                   onClick={() => setCalendarType('hijri')}
                 >
-                  🌙 Hijri Takvim
+                  Hijri Takvim
                 </button>
                 <button
                   type="button"
@@ -168,7 +168,7 @@ export default function Home() {
                   }`}
                   onClick={() => setCalendarType('gregorian')}
                 >
-                  ☀️ Miladi Takvim
+                  Miladi Takvim
                 </button>
               </div>
             </div>
@@ -176,7 +176,7 @@ export default function Home() {
             <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block font-bold text-slate-700">
-                  📆 Gün Filtresi (Her Ayın X. Günü)
+                  Gün Filtresi (Her Ayın X. Günü)
                 </label>
                 <select
                   className="w-full rounded-lg border-2 border-slate-200 px-3 py-2"
@@ -192,7 +192,7 @@ export default function Home() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block font-bold text-slate-700">🗓️ Ay Filtresi</label>
+                <label className="mb-1 block font-bold text-slate-700">Ay Filtresi</label>
                 <select
                   className="w-full rounded-lg border-2 border-slate-200 px-3 py-2"
                   value={monthFilter}
@@ -215,15 +215,15 @@ export default function Home() {
                 onClick={handlePredict}
                 className="rounded-2xl bg-btn-gradient px-10 py-3 text-lg font-bold text-white shadow-lg transition hover:-translate-y-0.5 disabled:opacity-60"
               >
-                {predicting ? '⏳ Hesaplanıyor...' : '✨ Maç Tahmini Yap'}
+                {predicting ? 'Hesaplanıyor...' : 'Maç Tahmini Yap'}
               </button>
             </div>
 
             {result && (
               <div>
                 <div className="mb-6 rounded-2xl bg-prediction-gradient p-6 text-white">
-                  <h2 className="mb-4 text-center text-2xl font-bold">🔮 Tahmin Sonucu</h2>
-                  <div className="mb-4 text-center text-2xl font-bold">🏆 {result.prediction}</div>
+                  <h2 className="mb-4 text-center text-2xl font-bold">Tahmin Sonucu</h2>
+                  <div className="mb-4 text-center text-2xl font-bold">{result.prediction}</div>
                   <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                     <div className="rounded-lg bg-white/15 p-3 text-center">
                       <div className="text-sm opacity-80">Güvenilirlik</div>
@@ -237,11 +237,11 @@ export default function Home() {
                     </div>
                     <div className="rounded-lg bg-white/15 p-3 text-center">
                       <div className="text-sm opacity-80">Skor Tahmini</div>
-                      <div className="mt-1 font-bold">⚽ {result.scorePrediction}</div>
+                      <div className="mt-1 font-bold">{result.scorePrediction}</div>
                     </div>
                     <div className="rounded-lg bg-white/15 p-3 text-center">
                       <div className="text-sm opacity-80">Performans Farkı</div>
-                      <div className="mt-1 font-bold">📈 %{result.successDifference.toFixed(1)}</div>
+                      <div className="mt-1 font-bold">%{result.successDifference.toFixed(1)}</div>
                     </div>
                   </div>
                   <pre className="whitespace-pre-wrap font-sans text-sm">{result.analysis}</pre>
@@ -259,7 +259,7 @@ export default function Home() {
 
       {error && (
         <div className="fixed right-4 top-4 z-50 rounded-lg bg-red-600 px-4 py-3 text-white shadow-xl">
-          ⚠️ {error}
+          {error}
         </div>
       )}
     </div>

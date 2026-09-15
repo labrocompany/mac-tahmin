@@ -5,13 +5,12 @@ import { getTeamSuggestions } from '@/lib/predictionEngine';
 
 interface TeamPickerProps {
   label: string;
-  icon: string;
   value: string;
   onChange: (value: string) => void;
   teams: string[];
 }
 
-export default function TeamPicker({ label, icon, value, onChange, teams }: TeamPickerProps) {
+export default function TeamPicker({ label, value, onChange, teams }: TeamPickerProps) {
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [browserQuery, setBrowserQuery] = useState('');
@@ -29,9 +28,7 @@ export default function TeamPicker({ label, icon, value, onChange, teams }: Team
 
   return (
     <div className="relative">
-      <label className="mb-1 block font-bold text-slate-700">
-        {icon} {label}
-      </label>
+      <label className="mb-1 block font-bold text-slate-700">{label}</label>
       <div className="flex gap-1">
         <input
           type="text"
@@ -54,7 +51,7 @@ export default function TeamPicker({ label, icon, value, onChange, teams }: Team
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => setBrowserOpen((v) => !v)}
         >
-          ☰
+          Liste
         </button>
       </div>
 
