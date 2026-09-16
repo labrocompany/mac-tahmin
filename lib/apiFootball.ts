@@ -20,6 +20,7 @@ export interface ApiFixture {
 export interface RecentMatch {
   gregorianDate: string;
   hijriDate: string;
+  hijriDay: number;
   hijriMonth: number;
   hijriYear: number;
   home: string;
@@ -180,6 +181,7 @@ function toRecentMatch(fx: ApiFixture, teamName: string): RecentMatch {
   return {
     gregorianDate,
     hijriDate: hijri?.label ?? gregorianDate,
+    hijriDay: hijri?.day ?? 0,
     hijriMonth: hijri?.month ?? 0,
     hijriYear: hijri?.year ?? 0,
     home: resolveTeamName(fx.teams.home.name, []),
@@ -249,10 +251,16 @@ export function countMatchResults(rows: RecentMatch[]): { total: number; wins: n
 
 export function filterMatchesByHijriMonth(
   rows: RecentMatch[],
-  month: number,
+  month: number | null,
   year: number | null = null,
+  day: number | null = null,
 ): RecentMatch[] {
-  return rows.filter((row) => row.hijriMonth === month && (year == null || row.hijriYear === year));
+  return rows.filter((row) => {
+    if (month != null && row.hijriMonth !== month) return false;
+    if (year != null && row.hijriYear !== year) return false;
+    if (day != null && row.hijriDay !== day) return false;
+    return true;
+  });
 }
 
 export interface MatchTable {

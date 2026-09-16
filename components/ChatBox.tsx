@@ -19,6 +19,7 @@ import { askGemini, ChatMessage, GeminiAction, GeminiContext, GeminiMatchRef, ha
 import {
   gregorianToHijri,
   HIJRI_MONTHS,
+  hijriDayFromText,
   hijriMonthFromText,
   HijriMonthFilter,
   isCurrentHijriMonthQuery,
@@ -83,7 +84,7 @@ function isTodayQuery(text: string): boolean {
 function wantsMatchList(text: string): boolean {
   if (/tablo/i.test(text)) return true;
   if (mentionsHijriCalendar(text)) return true;
-  if (isCurrentHijriMonthQuery(text) || hijriMonthFromText(text) != null) return true;
+  if (isCurrentHijriMonthQuery(text) || hijriMonthFromText(text) != null || hijriDayFromText(text) != null) return true;
   if (/(t[uü]m|ge[cç]mi[sş]).{0,24}ma[cç]|ma[cç].{0,24}(liste|yaz)/i.test(text)) return true;
   return false;
 }
@@ -172,6 +173,8 @@ const STOP_TOKENS = new Set([
 const TEAM_SEARCH_ALIASES: Record<string, string> = {
   adnanspor: 'Adanaspor',
   adanaspor: 'Adanaspor',
+  gsnin: 'Galatasaray',
+  gs: 'Galatasaray',
   galasaray: 'Galatasaray',
 };
 
@@ -279,7 +282,7 @@ function pickListedMatches(
   } else if (t2) {
     rows = data.team2Recent;
   }
-  if (filter != null) rows = filterMatchesByHijriMonth(rows, filter.month, filter.year);
+  if (filter != null) rows = filterMatchesByHijriMonth(rows, filter.month, filter.year, filter.day);
   return rows;
 }
 
@@ -490,7 +493,8 @@ export default function ChatBox() {
           listed.length === 0 &&
           mentionsHijriCalendar(userText) &&
           !isCurrentHijriMonthQuery(userText) &&
-          hijriMonthFromText(userText) == null
+          hijriMonthFromText(userText) == null &&
+          hijriDayFromText(userText) == null
         ) {
           listed = pickListedMatches(data, ct1, ct2, null);
           if (listed.length === 0) listed = lastListedRef.current;
@@ -582,7 +586,7 @@ export default function ChatBox() {
         }
         chips = packed.table ? [] : chips;
       } else if (listIntent && !packed.table && hijriMonth != null) {
-        reply = `${hijriMonth.label} ayında bu takımların maçı bulunamadı.`;
+        reply = `${hijriMonth.label} tarihinde bu takımların maçı bulunamadı.`;
       }
       setMessages((prev) => [
         ...prev,

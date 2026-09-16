@@ -205,19 +205,45 @@ export function isCurrentHijriMonthQuery(text: string): boolean {
 }
 
 export interface HijriMonthFilter {
-  month: number;
+  month: number | null;
+  day: number | null;
   year: number | null;
   label: string;
 }
 
+const MONTH_HINT = 'muharrem|safer|rebi|cemazi|recep|saban|şaban|ramazan|sevval|şevval|zilkade|zilhicce';
+
+export function hijriDayFromText(text: string): number | null {
+  const her = text.match(/her\s+ay(?:[ıi]n)?\s+(\d{1,2})/i);
+  if (her) {
+    const day = Number(her[1]);
+    if (day >= 1 && day <= 30) return day;
+  }
+  const before = text.match(new RegExp(`(?:^|\\s)(\\d{1,2})\\s*(?:['’.]\\s*)?(?:${MONTH_HINT})`, 'i'));
+  if (before) {
+    const day = Number(before[1]);
+    if (day >= 1 && day <= 30) return day;
+  }
+  const after = text.match(new RegExp(`(?:${MONTH_HINT})[\\wüÜıİğĞşŞçÇöÖ]*\\s+(?:ayının\\s+)?(\\d{1,2})(?:['’]?[üuıi])?`, 'i'));
+  if (after) {
+    const day = Number(after[1]);
+    if (day >= 1 && day <= 30) return day;
+  }
+  return null;
+}
+
 export function resolveHijriMonthFilter(text: string, todayIso: string): HijriMonthFilter | null {
   const today = isoToHijri(todayIso);
-  if (isCurrentHijriMonthQuery(text) && today) {
-    return { month: today.month, year: today.year, label: `${today.monthName} ${today.year}` };
-  }
+  const day = hijriDayFromText(text);
   const named = hijriMonthFromText(text);
-  if (named != null) {
-    return { month: named, year: null, label: HIJRI_MONTHS[named - 1] };
+  if (isCurrentHijriMonthQuery(text) && today) {
+    const label = day != null ? `${day} ${today.monthName} ${today.year}` : `${today.monthName} ${today.year}`;
+    return { month: today.month, day, year: today.year, label };
+  }
+  if (named != null || day != null) {
+    const monthName = named != null ? HIJRI_MONTHS[named - 1] : 'her ay';
+    const label = day != null && named != null ? `${day} ${monthName}` : day != null ? `her ayın ${day}'i` : monthName;
+    return { month: named, day, year: null, label };
   }
   return null;
 }
