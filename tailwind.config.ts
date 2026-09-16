@@ -4,12 +4,34 @@ const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
     extend: {
-      backgroundImage: {
-        'app-gradient': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        'prediction-gradient': 'linear-gradient(45deg, #f093fb 0%, #f5576c 100%)',
-        'toggle-gradient': 'linear-gradient(45deg, #4facfe 0%, #00f2fe 100%)',
-        'toggle-active-gradient': 'linear-gradient(45deg, #fa709a 0%, #fee140 100%)',
-        'btn-gradient': 'linear-gradient(45deg, #667eea 0%, #764ba2 100%)',
+      colors: {
+        surface: 'var(--color-bg-primary)',
+        elevated: 'var(--color-bg-elevated)',
+        elevated2: 'var(--color-bg-elevated-2)',
+        ink: 'var(--color-text-primary)',
+        inksecondary: 'var(--color-text-secondary)',
+        inktertiary: 'var(--color-text-tertiary)',
+        hairline: 'var(--color-border)',
+        hairlinestrong: 'var(--color-border-strong)',
+        accent: 'var(--color-accent)',
+        accenthover: 'var(--color-accent-hover)',
+        accentsoft: 'var(--color-accent-soft)',
+      },
+      fontFamily: {
+        sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"SF Pro Display"',
+          '"SF Pro Text"',
+          '"Segoe UI"',
+          'Roboto',
+          'Helvetica',
+          'Arial',
+          'sans-serif',
+        ],
+      },
+      borderRadius: {
+        '4xl': '28px',
       },
     },
   },

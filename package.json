@@ -4,7 +4,6 @@
   "private": true,
   "scripts": {
     "generate-data": "tsx scripts/generate-data.ts",
-    "import-matches": "tsx scripts/import-matches.ts",
     "prebuild": "npm run generate-data",
     "dev": "npm run generate-data && next dev",
     "build": "next build",

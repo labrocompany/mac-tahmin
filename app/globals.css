@@ -2,7 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-bg-primary: #ffffff;
+  --color-bg-elevated: #f5f5f7;
+  --color-bg-elevated-2: #fbfbfd;
+  --color-text-primary: rgba(0, 0, 0, 0.88);
+  --color-text-secondary: rgba(0, 0, 0, 0.56);
+  --color-text-tertiary: rgba(0, 0, 0, 0.36);
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-strong: rgba(0, 0, 0, 0.16);
+  --color-accent: #0071e3;
+  --color-accent-hover: #0077ed;
+  --color-accent-soft: rgba(0, 113, 227, 0.1);
+
+  --color-green: #34c759;
+  --color-green-soft: rgba(52, 199, 89, 0.12);
+  --color-orange: #ff9500;
+  --color-orange-soft: rgba(255, 149, 0, 0.12);
+  --color-red: #ff3b30;
+  --color-red-soft: rgba(255, 59, 48, 0.12);
+  --color-purple: #af52de;
+  --color-purple-soft: rgba(175, 82, 222, 0.1);
+  --color-indigo: #5856d6;
+  --color-indigo-soft: rgba(88, 86, 214, 0.1);
+  --color-teal: #30b0c7;
+  --color-teal-soft: rgba(48, 176, 199, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg-primary: #000000;
+    --color-bg-elevated: #1d1d1f;
+    --color-bg-elevated-2: #161617;
+    --color-text-primary: rgba(255, 255, 255, 0.92);
+    --color-text-secondary: rgba(255, 255, 255, 0.58);
+    --color-text-tertiary: rgba(255, 255, 255, 0.4);
+    --color-border: rgba(255, 255, 255, 0.12);
+    --color-border-strong: rgba(255, 255, 255, 0.2);
+    --color-accent: #2997ff;
+    --color-accent-hover: #47a1ff;
+    --color-accent-soft: rgba(41, 151, 255, 0.16);
+  }
+}
+
 html,
 body {
   min-height: 100%;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-text-tertiary) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-text-tertiary);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-track {
+  background-color: transparent;
 }

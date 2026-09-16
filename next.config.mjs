@@ -12,6 +12,10 @@ const nextConfig = {
   },
   env: {
     NEXT_PUBLIC_BASE_PATH: basePath,
+    NEXT_PUBLIC_GEMINI_API_KEY:
+      process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY || '',
+    NEXT_PUBLIC_API_FOOTBALL_KEY:
+      process.env.NEXT_PUBLIC_API_FOOTBALL_KEY || process.env.API_FOOTBALL_KEY || '',
   },
 };
 

@@ -32,6 +32,8 @@ export const API_TEAM_TO_CSV: Record<string, string> = {
   Kocaelispor: 'Kocaelispor',
   'Gençlerbirliği': 'Genclerbirligi',
   Genclerbirligi: 'Genclerbirligi',
+  'Çorum FK': 'Corum FK',
+  'Corum FK': 'Corum FK',
 };
 
 export function foldName(name: string): string {

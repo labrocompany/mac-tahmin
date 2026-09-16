@@ -1,84 +1,78 @@
-import { readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
-import { hijriToGregorian } from '../lib/hijri';
+import { footballKey, apiGet } from '../lib/apiFootball';
+import { fetchDayFixtures, pickRelevantFixtures, todayInIstanbul } from '../lib/liveFixtures';
+import { resolveTeamName } from '../lib/teamMap';
 
-const CSV_PATH = resolve(__dirname, '../legacy-python/database.csv');
 const OUTPUT_DIR = resolve(__dirname, '../public/data');
+const SEASONS = [2024, 2025, 2026];
 
-function resultCode(result: string): number {
-  if (result === 'H') return 0;
-  if (result === 'A') return 1;
-  if (result === 'D') return 2;
-  return 3;
+function loadEnvLocal() {
+  const envPath = resolve(__dirname, '../.env.local');
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, 'utf-8').split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq < 1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    const value = trimmed.slice(eq + 1).trim();
+    if (!process.env[key]) process.env[key] = value;
+  }
 }
 
-function main() {
-  const raw = readFileSync(CSV_PATH, 'utf-8');
-  const lines = raw.split('\n').filter((line) => line.trim().length > 0);
-  const header = lines[0].split(',');
+async function writeTeamsAndIds() {
+  const map: Record<string, number> = {};
+  const names = new Set<string>();
 
-  const dateIdx = header.indexOf('Date');
-  const homeIdx = header.indexOf('HomeTeam');
-  const awayIdx = header.indexOf('AwayTeam');
-  const resultIdx = header.indexOf('Result');
+  if (!footballKey()) {
+    writeFileSync(resolve(OUTPUT_DIR, 'teams.json'), JSON.stringify([]));
+    writeFileSync(resolve(OUTPUT_DIR, 'api-team-ids.json'), JSON.stringify(map));
+    console.log('API_FOOTBALL_KEY yok, bos teams/api-team-ids yazildi.');
+    return;
+  }
 
-  const teamIndex = new Map<string, number>();
-  const teams: string[] = [];
-
-  function getTeamIndex(name: string): number {
-    let idx = teamIndex.get(name);
-    if (idx === undefined) {
-      idx = teams.length;
-      teams.push(name);
-      teamIndex.set(name, idx);
+  for (const season of SEASONS) {
+    try {
+      const rows = await apiGet<Array<{ team: { id: number; name: string } }>>(
+        `/teams?league=203&season=${season}`,
+      );
+      for (const row of rows ?? []) {
+        const canonical = resolveTeamName(row.team.name, []);
+        names.add(canonical);
+        map[canonical] = row.team.id;
+        map[row.team.name] = row.team.id;
+      }
+    } catch {
+      continue;
     }
-    return idx;
   }
 
-  const matches: number[][] = [];
-
-  for (let i = 1; i < lines.length; i += 1) {
-    const cols = lines[i].split(',');
-    const dateStr = cols[dateIdx] ?? '';
-    const hijriParts = dateStr.split('-');
-    if (hijriParts.length < 3) continue;
-
-    const hy = parseInt(hijriParts[0], 10);
-    const hm = parseInt(hijriParts[1], 10);
-    const hd = parseInt(hijriParts[2], 10);
-    if (Number.isNaN(hy) || Number.isNaN(hm) || Number.isNaN(hd)) continue;
-
-    const homeName = cols[homeIdx] ?? '';
-    const awayName = cols[awayIdx] ?? '';
-    if (!homeName || !awayName) continue;
-
-    const home = getTeamIndex(homeName);
-    const away = getTeamIndex(awayName);
-    const rc = resultCode(cols[resultIdx] ?? '');
-
-    const [gy, gm, gd] = hijriToGregorian(hd, hm, hy);
-
-    matches.push([hy, hm, hd, gy, gm, gd, home, away, rc]);
-  }
-
-  const sortedTeams = [...teams].sort((a, b) => a.localeCompare(b));
-  const remap = new Map<number, number>();
-  sortedTeams.forEach((name, newIdx) => {
-    const oldIdx = teamIndex.get(name);
-    if (oldIdx !== undefined) remap.set(oldIdx, newIdx);
-  });
-
-  const remappedMatches = matches.map((row) => {
-    const [hy, hm, hd, gy, gm, gd, home, away, rc] = row;
-    return [hy, hm, hd, gy, gm, gd, remap.get(home) ?? home, remap.get(away) ?? away, rc];
-  });
-
-  mkdirSync(OUTPUT_DIR, { recursive: true });
+  const sortedTeams = [...names].sort((a, b) => a.localeCompare(b));
   writeFileSync(resolve(OUTPUT_DIR, 'teams.json'), JSON.stringify(sortedTeams));
-  writeFileSync(resolve(OUTPUT_DIR, 'matches.json'), JSON.stringify(remappedMatches));
-
-  console.log(`Takım sayısı: ${sortedTeams.length}`);
-  console.log(`Maç sayısı: ${remappedMatches.length}`);
+  writeFileSync(resolve(OUTPUT_DIR, 'api-team-ids.json'), JSON.stringify(map));
+  console.log(`Takim sayisi: ${sortedTeams.length}`);
+  console.log(`API takim id: ${Object.keys(map).length}`);
 }
 
-main();
+async function writeLiveFixtures() {
+  const date = todayInIstanbul();
+  const fixtures = pickRelevantFixtures(await fetchDayFixtures());
+  writeFileSync(
+    resolve(OUTPUT_DIR, 'live-fixtures.json'),
+    JSON.stringify({ date, timezone: 'Europe/Istanbul', fixtures }),
+  );
+  console.log(`Canli fikstur: ${date} / ${fixtures.length} mac`);
+}
+
+async function main() {
+  loadEnvLocal();
+  mkdirSync(OUTPUT_DIR, { recursive: true });
+  await writeTeamsAndIds();
+  await writeLiveFixtures();
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

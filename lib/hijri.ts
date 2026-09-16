@@ -150,3 +150,91 @@ export function hijriToGregorian(hijriDay: number, hijriMonth: number, hijriYear
   const jd = hijriToJulianDay(hijriYear, hijriMonth, hijriDay);
   return julianDayToGregorian(jd);
 }
+
+function foldText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/ı/g, 'i')
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+export interface HijriParts {
+  day: number;
+  month: number;
+  year: number;
+  monthName: string;
+  label: string;
+}
+
+export function isoToHijri(iso: string): HijriParts | null {
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  const [day, month, year] = gregorianToHijri(y, m, d);
+  const monthName = HIJRI_MONTHS[month - 1];
+  return { day, month, year, monthName, label: `${day} ${monthName} ${year}` };
+}
+
+const HIJRI_MONTH_ALIASES: Array<{ month: number; keys: string[] }> = [
+  { month: 1, keys: ['muharrem', 'muharram'] },
+  { month: 2, keys: ['safer', 'safar'] },
+  { month: 3, keys: ['rebiulevvel', 'rebiulevvel', 'rabiulevvel', 'rabiulawwal'] },
+  { month: 4, keys: ['rebiulahir', 'rebiulakhir', 'rabiulahir', 'rabiulakhir', 'rebiulahir'] },
+  { month: 5, keys: ['cemaziyelevvel', 'jumadaalawwal', 'cemazielevvel'] },
+  { month: 6, keys: ['cemaziyelahir', 'jumadaalakhir', 'cemazielahir'] },
+  { month: 7, keys: ['recep', 'rajab'] },
+  { month: 8, keys: ['saban', 'shaban'] },
+  { month: 9, keys: ['ramazan', 'ramadan'] },
+  { month: 10, keys: ['sevval', 'shawwal'] },
+  { month: 11, keys: ['zilkade', 'dhulqadah'] },
+  { month: 12, keys: ['zilhicce', 'dhulhijjah'] },
+];
+
+export function mentionsHijriCalendar(text: string): boolean {
+  return /hi[cj]r[iî]/i.test(text);
+}
+
+export function isCurrentHijriMonthQuery(text: string): boolean {
+  return /\bbu\s+ay(da|daki|ki|ın|in)?\b/i.test(text);
+}
+
+export interface HijriMonthFilter {
+  month: number;
+  year: number | null;
+  label: string;
+}
+
+export function resolveHijriMonthFilter(text: string, todayIso: string): HijriMonthFilter | null {
+  const today = isoToHijri(todayIso);
+  if (isCurrentHijriMonthQuery(text) && today) {
+    return { month: today.month, year: today.year, label: `${today.monthName} ${today.year}` };
+  }
+  const named = hijriMonthFromText(text);
+  if (named != null) {
+    return { month: named, year: null, label: HIJRI_MONTHS[named - 1] };
+  }
+  return null;
+}
+
+export function hijriMonthFromText(text: string): number | null {
+  const folded = foldText(text);
+  for (const entry of HIJRI_MONTH_ALIASES) {
+    for (const key of entry.keys) {
+      if (folded.includes(key)) return entry.month;
+    }
+  }
+  for (let i = 0; i < HIJRI_MONTHS.length; i += 1) {
+    if (folded.includes(foldText(HIJRI_MONTHS[i]))) return i + 1;
+  }
+  if (folded.includes('rebi') && folded.includes('ahir')) return 4;
+  if (folded.includes('rebi') && folded.includes('evvel')) return 3;
+  if (folded.includes('cemazi') && folded.includes('ahir')) return 6;
+  if (folded.includes('cemazi') && folded.includes('evvel')) return 5;
+  return null;
+}
