@@ -68,24 +68,6 @@ function toBlock(name: string, rows: RecentMatch[], scope: string | null, mode: 
   };
 }
 
-function pushBlocks(
-  next: TablePayload[],
-  name: string,
-  rows: RecentMatch[],
-  scope: string | null,
-  mode: DateMode,
-) {
-  const all = toBlock(name, rows, scope, mode);
-  const shifted = toBlock(
-    `${name} · 1 gün ileri atıldı`,
-    rows.filter((row) => row.hijriShifted),
-    scope,
-    mode,
-  );
-  if (all) next.push(all);
-  if (shifted) next.push(shifted);
-}
-
 function ResultLine({ scope, counts }: { scope?: string; counts: TableCounts }) {
   return (
     <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-inksecondary">
@@ -193,8 +175,10 @@ export default function MatchTablePanel({
           matchesForTeam(t1, monthVal, dayVal),
           matchesForTeam(t2, monthVal, dayVal),
         ]);
-        pushBlocks(next, t1, first, scope, mode);
-        pushBlocks(next, t2, second, scope, mode);
+        const b1 = toBlock(t1, first, scope, mode);
+        const b2 = toBlock(t2, second, scope, mode);
+        if (b1) next.push(b1);
+        if (b2) next.push(b2);
       } else if (t1 && t2) {
         const [h2h, recent] = await Promise.all([
           fetchHeadToHeadForTeams(t1, t2, 200),
@@ -205,10 +189,12 @@ export default function MatchTablePanel({
           rows = filterMatchesByHijriMonth(rows, monthVal > 0 ? monthVal : null, null, dayVal > 0 ? dayVal : null);
         }
         await attachJumuaTimes(rows);
-        pushBlocks(next, `${t1} - ${t2}`, rows, scope, mode);
+        const block = toBlock(`${t1} - ${t2}`, rows, scope, mode);
+        if (block) next.push(block);
       } else {
         const rows = await matchesForTeam(t1, monthVal, dayVal);
-        pushBlocks(next, t1, rows, scope, mode);
+        const block = toBlock(t1, rows, scope, mode);
+        if (block) next.push(block);
       }
       if (loadId !== loadIdRef.current) return;
       setBlocks(next);
