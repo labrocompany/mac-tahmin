@@ -31,7 +31,7 @@ function MatchRow({
         <span>
           {fx.weekday} · {formatTrDate(fx.date)} · {fx.time}
         </span>
-        <span className={isLive(fx) ? 'font-medium text-accent' : ''}>{isLive(fx) ? 'Canlı' : fx.status}</span>
+        {isLive(fx) && <span className="font-medium text-accent">Canlı</span>}
       </div>
       <div className="mt-1.5 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm font-medium text-ink">
         <span className="truncate">{fx.home}</span>
