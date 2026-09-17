@@ -106,7 +106,7 @@ export default function MatchWeekBoard({ onPick }: { onPick?: (fx: LiveFixture) 
   }, []);
 
   return (
-    <aside className="flex h-[36rem] w-full flex-col overflow-hidden rounded-3xl border border-hairline bg-surface/80 shadow-sm backdrop-blur-xl lg:h-[calc(100vh-18rem)]">
+    <aside className="flex h-[36rem] w-full flex-col overflow-hidden rounded-3xl border border-hairline bg-surface/80 shadow-sm backdrop-blur-xl lg:h-[calc(100vh-8rem)]">
       <div className="border-b border-hairline px-5 py-4">
         <h2 className="text-sm font-semibold text-ink">Haftalık Maçlar</h2>
         <p className="mt-0.5 text-xs text-inksecondary">Yalnızca Türkiye ligleri · 1 hafta önce, bugün ve 1 hafta sonra</p>

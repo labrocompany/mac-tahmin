@@ -210,7 +210,7 @@ export default function MatchTablePanel({
   }
 
   return (
-    <section className="flex h-[36rem] w-full flex-col overflow-hidden rounded-3xl border border-hairline bg-surface/80 shadow-sm backdrop-blur-xl lg:h-[calc(100vh-18rem)]">
+    <section className="flex h-[36rem] w-full flex-col overflow-hidden rounded-3xl border border-hairline bg-surface/80 shadow-sm backdrop-blur-xl lg:h-[calc(100vh-8rem)]">
       <div className="border-b border-hairline px-5 py-4">
         <h2 className="text-sm font-semibold text-ink">Tablo Sistemi</h2>
         <p className="mt-0.5 text-xs text-inksecondary">Maçları buraya gir, tablo yalnızca bu sekmede açılır</p>

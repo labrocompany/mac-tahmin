@@ -25,7 +25,7 @@ export default function Workspace() {
   }
 
   return (
-    <div className="mx-auto max-w-[88rem] px-6 py-10">
+    <div className="mx-auto max-w-[88rem] px-6 py-6">
       <div className="mb-6 flex justify-center">
         <div className="inline-flex rounded-full bg-elevated p-1">
           <button
