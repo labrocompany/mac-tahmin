@@ -1,6 +1,5 @@
 import { assetUrl } from './config';
-import { isoToHijri } from './hijri';
-import { formatJumuaLabel, formatTrDate, fridayOfWeek, weekdayFromIso } from './prayerTimes';
+import { formatJumuaLabel, formatTrDate, fridayOfWeek, kickoffHijri, weekdayFromIso } from './prayerTimes';
 import { foldName, resolveTeamName } from './teamMap';
 
 const API_BASE = 'https://v3.football.api-sports.io';
@@ -193,9 +192,11 @@ function toRecentMatch(fx: ApiFixture, teamName: string): RecentMatch {
   else if ((hg > ag && isHome) || (ag > hg && !isHome)) result = 'W';
   else result = 'L';
   const gregorianDate = fx.fixture.date.slice(0, 10);
-  const hijri = isoToHijri(gregorianDate);
+  const kickoff = fx.fixture.date.slice(11, 16);
   const stadium = fx.fixture.venue?.name?.trim() || '';
   const city = fx.fixture.venue?.city?.trim() || '';
+  const country = fx.league.country || '';
+  const { hijri, maghribTime } = kickoffHijri(gregorianDate, kickoff, city, country);
   return {
     gregorianDate,
     hijriDate: hijri?.label ?? gregorianDate,
@@ -206,14 +207,14 @@ function toRecentMatch(fx: ApiFixture, teamName: string): RecentMatch {
     away: resolveTeamName(fx.teams.away.name, []),
     score: `${hg}-${ag}`,
     league: fx.league.name,
-    country: fx.league.country || '',
+    country,
     venue: isHome ? 'Ev' : 'Deplasman',
     stadium,
     city,
     weekday: weekdayFromIso(gregorianDate),
     jumuaDate: fridayOfWeek(gregorianDate),
     jumuaTime: '',
-    maghribTime: '',
+    maghribTime,
     result,
   };
 }
@@ -295,8 +296,9 @@ export interface MatchTable {
 }
 
 export function buildMatchTable(rows: RecentMatch[], dateMode: 'gregorian' | 'hijri' | 'both' = 'hijri'): MatchTable {
-  const extraHeaders = ['Gün', 'Stadyum', 'Şehir', 'Cuma Namazı', 'Akşam Namazı'];
+  const extraHeaders = ['Lig', 'Gün', 'Stadyum', 'Şehir', 'Cuma Namazı', 'Akşam Namazı'];
   const extra = (m: RecentMatch) => [
+    m.league || '-',
     m.weekday || '-',
     m.stadium || '-',
     m.city || '-',

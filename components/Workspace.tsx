@@ -20,7 +20,15 @@ export default function Workspace() {
   }
 
   function pickMatch(fx: LiveFixture) {
-    setWeekPick({ home: fx.home, away: fx.away, date: fx.date, id: Date.now() });
+    setWeekPick({
+      home: fx.home,
+      away: fx.away,
+      date: fx.date,
+      time: fx.time,
+      city: fx.city,
+      country: fx.country,
+      id: Date.now(),
+    });
     setTab('table');
   }
 

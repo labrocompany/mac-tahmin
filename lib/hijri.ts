@@ -177,12 +177,39 @@ export interface HijriParts {
   label: string;
 }
 
+export function addHijriDays(day: number, month: number, year: number, delta: number): [number, number, number] {
+  let d = day + delta;
+  let m = month;
+  let y = year;
+  while (d > getHijriMonthLength(y, m)) {
+    d -= getHijriMonthLength(y, m);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  while (d < 1) {
+    m -= 1;
+    if (m < 1) {
+      m = 12;
+      y -= 1;
+    }
+    d += getHijriMonthLength(y, m);
+  }
+  return [d, m, y];
+}
+
+export function hijriParts(day: number, month: number, year: number): HijriParts {
+  const monthName = HIJRI_MONTHS[month - 1] || '';
+  return { day, month, year, monthName, label: `${day} ${monthName} ${year}` };
+}
+
 export function isoToHijri(iso: string): HijriParts | null {
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
   if (!y || !m || !d) return null;
   const [day, month, year] = gregorianToHijri(y, m, d);
-  const monthName = HIJRI_MONTHS[month - 1];
-  return { day, month, year, monthName, label: `${day} ${monthName} ${year}` };
+  return hijriParts(day, month, year);
 }
 
 const HIJRI_MONTH_ALIASES: Array<{ month: number; keys: string[] }> = [

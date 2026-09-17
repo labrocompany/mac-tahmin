@@ -13,8 +13,8 @@ import {
   RecentMatch,
 } from '@/lib/apiFootball';
 import { assetUrl } from '@/lib/config';
-import { HIJRI_MONTHS, isoToHijri } from '@/lib/hijri';
-import { attachJumuaTimes } from '@/lib/prayerTimes';
+import { HIJRI_MONTHS } from '@/lib/hijri';
+import { attachJumuaTimes, kickoffHijri } from '@/lib/prayerTimes';
 import { resolveTeamToken } from '@/lib/predictionEngine';
 import MatchTableView from './MatchTableView';
 
@@ -38,6 +38,9 @@ export interface WeekPick {
   home: string;
   away: string;
   date: string;
+  time: string;
+  city: string;
+  country: string;
   id: number;
 }
 
@@ -109,7 +112,7 @@ export default function MatchTablePanel({
 
   useEffect(() => {
     if (!weekPick) return;
-    const hijri = isoToHijri(weekPick.date);
+    const hijri = kickoffHijri(weekPick.date, weekPick.time, weekPick.city, weekPick.country).hijri;
     const nextDay = hijri?.day ?? 0;
     setTeam1(weekPick.home);
     setTeam2(weekPick.away);

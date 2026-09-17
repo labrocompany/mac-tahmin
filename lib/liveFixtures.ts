@@ -35,7 +35,7 @@ const MAJOR_LEAGUES: Array<{ country: string; league: string }> = [
   { country: 'World', league: 'UEFA Europa Conference League' },
 ];
 
-const RANGE_LEAGUES = [203, 204, 205, 206, 207];
+const RANGE_LEAGUES = [203, 204];
 const RANGE_SEASON = 2026;
 
 let rangeCache: { key: string; rows: LiveFixture[] } | null = null;
@@ -49,11 +49,19 @@ export function addDaysIso(iso: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+function isBoardLeague(fx: LiveFixture): boolean {
+  const n = fold(fx.league);
+  if (n.includes('2. lig') || n.includes('2 lig')) return false;
+  if (n.includes('super lig')) return true;
+  if (n.includes('1. lig') || n.includes('1 lig')) return true;
+  return false;
+}
+
 export function pickBoardFixtures(all: LiveFixture[]): LiveFixture[] {
   const merged: LiveFixture[] = [];
   const seen = new Set<string>();
   for (const fx of all) {
-    if (fx.country !== 'Turkey') continue;
+    if (fx.country !== 'Turkey' || !isBoardLeague(fx)) continue;
     const rowKey = `${fx.date}|${fx.time}|${fx.home}|${fx.away}`;
     if (seen.has(rowKey)) continue;
     seen.add(rowKey);
@@ -69,15 +77,15 @@ export function splitBoardFixtures(
   const pastFrom = addDaysIso(today, -7);
   const upcomingTo = addDaysIso(today, 7);
   const past = rows
-    .filter((fx) => fx.country === 'Turkey' && fx.date < today && fx.date >= pastFrom)
+    .filter((fx) => fx.country === 'Turkey' && isBoardLeague(fx) && fx.date < today && fx.date >= pastFrom)
     .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`))
     .slice(0, 40);
   const todayRows = rows
-    .filter((fx) => fx.country === 'Turkey' && fx.date === today)
+    .filter((fx) => fx.country === 'Turkey' && isBoardLeague(fx) && fx.date === today)
     .sort((a, b) => a.time.localeCompare(b.time))
     .slice(0, 40);
   const upcoming = rows
-    .filter((fx) => fx.country === 'Turkey' && fx.date > today && fx.date <= upcomingTo)
+    .filter((fx) => fx.country === 'Turkey' && isBoardLeague(fx) && fx.date > today && fx.date <= upcomingTo)
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
     .slice(0, 40);
   return { past, today: todayRows, upcoming };
@@ -86,7 +94,7 @@ export function splitBoardFixtures(
 export async function fetchFixtureRange(from: string, to: string): Promise<LiveFixture[]> {
   const key = footballKey();
   if (!key) return [];
-  const cacheKey = `tr|${from}|${to}`;
+  const cacheKey = `tr-top2|${from}|${to}`;
   if (rangeCache?.key === cacheKey) return rangeCache.rows;
   if (rangeInflight) return rangeInflight;
 

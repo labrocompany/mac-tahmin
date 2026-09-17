@@ -1,4 +1,4 @@
-import { GREGORIAN_MONTHS } from './hijri';
+import { GREGORIAN_MONTHS, addHijriDays, hijriParts, isoToHijri, HijriParts } from './hijri';
 
 const WEEKDAYS = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
 
@@ -217,6 +217,23 @@ export function computeMaghrib(iso: string, city: string, country: string): stri
   const ha = sunsetHoursFromNoon(local.lat, sunDeclination(jd));
   const extra = local.turkey ? 3 : 0;
   return formatHour(local.hours + ha + extra / 60);
+}
+
+export function kickoffHijri(
+  isoDate: string,
+  time: string,
+  city: string,
+  country: string,
+): { hijri: HijriParts | null; maghribTime: string } {
+  const maghribTime = computeMaghrib(isoDate, city, country);
+  const base = isoToHijri(isoDate);
+  if (!base) return { hijri: null, maghribTime };
+  const kickoff = time.slice(0, 5);
+  if (kickoff && maghribTime && kickoff >= maghribTime) {
+    const [day, month, year] = addHijriDays(base.day, base.month, base.year, 1);
+    return { hijri: hijriParts(day, month, year), maghribTime };
+  }
+  return { hijri: base, maghribTime };
 }
 
 export async function attachJumuaTimes(rows: JumuaPlace[]): Promise<void> {
