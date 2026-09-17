@@ -36,6 +36,7 @@ export interface RecentMatch {
   weekday: string;
   jumuaDate: string;
   jumuaTime: string;
+  maghribTime: string;
   result: 'W' | 'D' | 'L';
 }
 
@@ -212,6 +213,7 @@ function toRecentMatch(fx: ApiFixture, teamName: string): RecentMatch {
     weekday: weekdayFromIso(gregorianDate),
     jumuaDate: fridayOfWeek(gregorianDate),
     jumuaTime: '',
+    maghribTime: '',
     result,
   };
 }
@@ -244,7 +246,7 @@ export function formatRecentMatches(rows: RecentMatch[], limit = 40): string {
     .slice(0, limit)
     .map(
       (m) =>
-        `${m.gregorianDate} | ${m.hijriDate} | ${m.weekday} | ${m.home} ${m.score} ${m.away} [${m.venue} ${m.result}, ${m.stadium || '-'}, ${m.city || '-'}, Cuma namazi ${formatJumuaLabel(m.jumuaDate, m.jumuaTime)}]`,
+        `${m.gregorianDate} | ${m.hijriDate} | ${m.weekday} | ${m.home} ${m.score} ${m.away} [${m.venue} ${m.result}, ${m.stadium || '-'}, ${m.city || '-'}, Cuma namazi ${formatJumuaLabel(m.jumuaDate, m.jumuaTime)}, Aksam namazi ${m.maghribTime || '-'}]`,
     )
     .join('\n');
 }
@@ -293,12 +295,13 @@ export interface MatchTable {
 }
 
 export function buildMatchTable(rows: RecentMatch[], dateMode: 'gregorian' | 'hijri' | 'both' = 'hijri'): MatchTable {
-  const extraHeaders = ['Gün', 'Stadyum', 'Şehir', 'Cuma Namazı'];
+  const extraHeaders = ['Gün', 'Stadyum', 'Şehir', 'Cuma Namazı', 'Akşam Namazı'];
   const extra = (m: RecentMatch) => [
     m.weekday || '-',
     m.stadium || '-',
     m.city || '-',
     formatJumuaLabel(m.jumuaDate, m.jumuaTime),
+    m.maghribTime || '-',
   ];
   const played = (m: RecentMatch) => {
     const dateLabel = formatTrDate(m.gregorianDate);

@@ -60,6 +60,8 @@ export interface JumuaPlace {
   country: string;
   jumuaDate: string;
   jumuaTime: string;
+  gregorianDate?: string;
+  maghribTime?: string;
 }
 
 export function weekdayFromIso(iso: string): string {
@@ -168,21 +170,63 @@ function formatHour(value: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-export function computeDhuhr(iso: string, city: string, country: string): string {
+function sunDeclination(jd: number): number {
+  const d = jd - 2451545.0;
+  const g = 357.529 + 0.98560028 * d;
+  const q = 280.459 + 0.98564736 * d;
+  const l = q + 1.915 * Math.sin(dtr(g)) + 0.02 * Math.sin(dtr(2 * g));
+  const e = 23.439 - 0.00000036 * d;
+  return rtd(Math.asin(Math.sin(dtr(e)) * Math.sin(dtr(l))));
+}
+
+function sunsetHoursFromNoon(lat: number, dec: number): number {
+  const x =
+    (Math.sin(dtr(-0.833)) - Math.sin(dtr(lat)) * Math.sin(dtr(dec))) /
+    (Math.cos(dtr(lat)) * Math.cos(dtr(dec)));
+  if (x <= -1) return 12;
+  if (x >= 1) return 0;
+  return rtd(Math.acos(x)) / 15;
+}
+
+function localSolarNoon(iso: string, city: string, country: string): { hours: number; lat: number; turkey: boolean } | null {
   const [year, month, day] = iso.split('-').map(Number);
-  if (!year || !month || !day) return '';
+  if (!year || !month || !day) return null;
   const place = placeFor(city, country);
   const tz = zoneOffsetHours(iso, place.tz);
   const jd = julian(year, month, day) - place.lng / (15 * 24);
   const noon = fixHour(12 - equationOfTime(jd));
   const hours = noon + tz - place.lng / 15;
-  const offsetMin = fold(country) === 'turkey' || place.tz === 'Europe/Istanbul' ? 5 : 0;
-  return formatHour(hours + offsetMin / 60);
+  const turkey = fold(country) === 'turkey' || place.tz === 'Europe/Istanbul';
+  return { hours, lat: place.lat, turkey };
+}
+
+export function computeDhuhr(iso: string, city: string, country: string): string {
+  const local = localSolarNoon(iso, city, country);
+  if (!local) return '';
+  const offsetMin = local.turkey ? 5 : 0;
+  return formatHour(local.hours + offsetMin / 60);
+}
+
+export function computeMaghrib(iso: string, city: string, country: string): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  if (!year || !month || !day) return '';
+  const local = localSolarNoon(iso, city, country);
+  if (!local) return '';
+  const place = placeFor(city, country);
+  const jd = julian(year, month, day) - place.lng / (15 * 24);
+  const ha = sunsetHoursFromNoon(local.lat, sunDeclination(jd));
+  const extra = local.turkey ? 3 : 0;
+  return formatHour(local.hours + ha + extra / 60);
 }
 
 export async function attachJumuaTimes(rows: JumuaPlace[]): Promise<void> {
   for (const row of rows) {
-    if (!row.jumuaDate || row.jumuaTime) continue;
-    row.jumuaTime = computeDhuhr(row.jumuaDate, row.city || '', row.country || '');
+    if (row.jumuaDate && !row.jumuaTime) {
+      row.jumuaTime = computeDhuhr(row.jumuaDate, row.city || '', row.country || '');
+    }
+    const maghribDay = row.gregorianDate || '';
+    if (maghribDay && !row.maghribTime) {
+      row.maghribTime = computeMaghrib(maghribDay, row.city || '', row.country || '');
+    }
   }
 }
