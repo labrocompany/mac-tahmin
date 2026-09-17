@@ -16,6 +16,9 @@ const config: Config = {
         accent: 'var(--color-accent)',
         accenthover: 'var(--color-accent-hover)',
         accentsoft: 'var(--color-accent-soft)',
+        win: 'var(--color-green)',
+        draw: 'var(--color-orange)',
+        loss: 'var(--color-red)',
       },
       fontFamily: {
         sans: [

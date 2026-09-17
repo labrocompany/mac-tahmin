@@ -2,19 +2,58 @@ import { GREGORIAN_MONTHS } from './hijri';
 
 const WEEKDAYS = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'];
 
-const COUNTRY_MAP: Record<string, string> = {
-  england: 'United Kingdom',
-  wales: 'United Kingdom',
-  scotland: 'United Kingdom',
-  'northern-ireland': 'United Kingdom',
-  'northern ireland': 'United Kingdom',
-  usa: 'United States',
-  holland: 'Netherlands',
-  world: '',
-};
+const CITY_COORDS: Array<{ keys: string[]; lat: number; lng: number; tz: string }> = [
+  { keys: ['istanbul', 'kadikoy', 'besiktas', 'sariyer', 'fatih', 'umraniye', 'bakirkoy', 'zeytinburnu'], lat: 41.0082, lng: 28.9784, tz: 'Europe/Istanbul' },
+  { keys: ['ankara'], lat: 39.9334, lng: 32.8597, tz: 'Europe/Istanbul' },
+  { keys: ['izmir', 'karsiyaka', 'bornova'], lat: 38.4237, lng: 27.1428, tz: 'Europe/Istanbul' },
+  { keys: ['bursa'], lat: 40.1826, lng: 29.0665, tz: 'Europe/Istanbul' },
+  { keys: ['antalya'], lat: 36.8969, lng: 30.7133, tz: 'Europe/Istanbul' },
+  { keys: ['trabzon'], lat: 41.0015, lng: 39.7178, tz: 'Europe/Istanbul' },
+  { keys: ['adana'], lat: 37.0, lng: 35.3213, tz: 'Europe/Istanbul' },
+  { keys: ['konya'], lat: 37.8746, lng: 32.4932, tz: 'Europe/Istanbul' },
+  { keys: ['kayseri'], lat: 38.7312, lng: 35.4787, tz: 'Europe/Istanbul' },
+  { keys: ['gaziantep', 'antep'], lat: 37.0662, lng: 37.3833, tz: 'Europe/Istanbul' },
+  { keys: ['samsun'], lat: 41.2867, lng: 36.33, tz: 'Europe/Istanbul' },
+  { keys: ['eskisehir'], lat: 39.7767, lng: 30.5206, tz: 'Europe/Istanbul' },
+  { keys: ['kocaeli', 'izmit', 'gebze'], lat: 40.7654, lng: 29.9408, tz: 'Europe/Istanbul' },
+  { keys: ['hatay', 'antakya'], lat: 36.2023, lng: 36.1613, tz: 'Europe/Istanbul' },
+  { keys: ['mersin'], lat: 36.8121, lng: 34.6415, tz: 'Europe/Istanbul' },
+  { keys: ['diyarbakir'], lat: 37.9144, lng: 40.2306, tz: 'Europe/Istanbul' },
+  { keys: ['malatya'], lat: 38.3552, lng: 38.3095, tz: 'Europe/Istanbul' },
+  { keys: ['rize'], lat: 41.0201, lng: 40.5234, tz: 'Europe/Istanbul' },
+  { keys: ['sivas'], lat: 39.7477, lng: 37.0179, tz: 'Europe/Istanbul' },
+  { keys: ['denizli'], lat: 37.7765, lng: 29.0864, tz: 'Europe/Istanbul' },
+  { keys: ['manisa'], lat: 38.6191, lng: 27.4289, tz: 'Europe/Istanbul' },
+  { keys: ['sakarya', 'adapazari'], lat: 40.7889, lng: 30.4053, tz: 'Europe/Istanbul' },
+  { keys: ['erzurum'], lat: 39.9055, lng: 41.2658, tz: 'Europe/Istanbul' },
+  { keys: ['elazig'], lat: 38.681, lng: 39.2264, tz: 'Europe/Istanbul' },
+  { keys: ['ordu'], lat: 40.9862, lng: 37.8797, tz: 'Europe/Istanbul' },
+  { keys: ['giresun'], lat: 40.9128, lng: 38.3895, tz: 'Europe/Istanbul' },
+  { keys: ['afyon', 'afyonkarahisar'], lat: 38.7507, lng: 30.5567, tz: 'Europe/Istanbul' },
+  { keys: ['alanya'], lat: 36.5444, lng: 31.9957, tz: 'Europe/Istanbul' },
+  { keys: ['london', 'londra'], lat: 51.5074, lng: -0.1278, tz: 'Europe/London' },
+  { keys: ['manchester'], lat: 53.4808, lng: -2.2426, tz: 'Europe/London' },
+  { keys: ['madrid'], lat: 40.4168, lng: -3.7038, tz: 'Europe/Madrid' },
+  { keys: ['barcelona'], lat: 41.3874, lng: 2.1686, tz: 'Europe/Madrid' },
+  { keys: ['milan', 'milano'], lat: 45.4642, lng: 9.19, tz: 'Europe/Rome' },
+  { keys: ['rome', 'roma'], lat: 41.9028, lng: 12.4964, tz: 'Europe/Rome' },
+  { keys: ['munich', 'munchen', 'munih'], lat: 48.1351, lng: 11.582, tz: 'Europe/Berlin' },
+  { keys: ['berlin'], lat: 52.52, lng: 13.405, tz: 'Europe/Berlin' },
+  { keys: ['paris'], lat: 48.8566, lng: 2.3522, tz: 'Europe/Paris' },
+  { keys: ['amsterdam'], lat: 52.3676, lng: 4.9041, tz: 'Europe/Amsterdam' },
+  { keys: ['lisbon', 'lizbon'], lat: 38.7223, lng: -9.1393, tz: 'Europe/Lisbon' },
+];
 
-const dayCache = new Map<string, string>();
-const dayInflight = new Map<string, Promise<string>>();
+const COUNTRY_DEFAULT: Record<string, { lat: number; lng: number; tz: string }> = {
+  turkey: { lat: 41.0082, lng: 28.9784, tz: 'Europe/Istanbul' },
+  england: { lat: 51.5074, lng: -0.1278, tz: 'Europe/London' },
+  spain: { lat: 40.4168, lng: -3.7038, tz: 'Europe/Madrid' },
+  italy: { lat: 41.9028, lng: 12.4964, tz: 'Europe/Rome' },
+  germany: { lat: 52.52, lng: 13.405, tz: 'Europe/Berlin' },
+  france: { lat: 48.8566, lng: 2.3522, tz: 'Europe/Paris' },
+  netherlands: { lat: 52.3676, lng: 4.9041, tz: 'Europe/Amsterdam' },
+  portugal: { lat: 38.7223, lng: -9.1393, tz: 'Europe/Lisbon' },
+};
 
 export interface JumuaPlace {
   city: string;
@@ -51,7 +90,7 @@ export function formatJumuaLabel(dateIso: string, time: string): string {
   return dateLabel || time || '-';
 }
 
-function foldCountry(value: string): string {
+function fold(value: string): string {
   return value
     .toLowerCase()
     .replace(/ı/g, 'i')
@@ -62,135 +101,88 @@ function foldCountry(value: string): string {
     .replace(/ç/g, 'c');
 }
 
-function aladhanCountry(country: string): string {
-  const mapped = COUNTRY_MAP[foldCountry(country)];
-  if (mapped !== undefined) return mapped;
-  return country.trim();
+function dtr(d: number): number {
+  return (d * Math.PI) / 180;
 }
 
-function prayerMethod(country: string): number {
-  return foldCountry(country) === 'turkey' ? 13 : 3;
+function rtd(r: number): number {
+  return (r * 180) / Math.PI;
 }
 
-function cleanCity(city: string): string {
-  return city.split(',')[0].trim();
+function fixHour(a: number): number {
+  let h = a - 24 * Math.floor(a / 24);
+  if (h < 0) h += 24;
+  return h;
 }
 
-function isoToAladhan(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return `${d}-${m}-${y}`;
-}
-
-function parseDhuhr(raw: unknown): string {
-  if (typeof raw !== 'string') return '';
-  const match = raw.match(/(\d{1,2}:\d{2})/);
-  return match ? match[1] : '';
-}
-
-function cacheKey(city: string, country: string, extra: string): string {
-  return `${foldCountry(city)}|${foldCountry(country)}|${extra}`;
-}
-
-async function fetchJson(url: string, ms = 3500): Promise<unknown> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
-  try {
-    const res = await fetch(url, { signal: ctrl.signal });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
-  } finally {
-    clearTimeout(timer);
+function julian(year: number, month: number, day: number): number {
+  let y = year;
+  let m = month;
+  if (m <= 2) {
+    y -= 1;
+    m += 12;
   }
+  const a = Math.floor(y / 100);
+  const b = 2 - a + Math.floor(a / 4);
+  return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + day + b - 1524.5;
 }
 
-function timingsUrl(city: string, country: string, iso: string): string {
-  const params = new URLSearchParams({
-    city,
-    method: String(prayerMethod(country)),
-  });
-  const mapped = aladhanCountry(country);
-  if (mapped) params.set('country', mapped);
-  return `https://api.aladhan.com/v1/timingsByCity/${isoToAladhan(iso)}?${params.toString()}`;
+function equationOfTime(jd: number): number {
+  const d = jd - 2451545.0;
+  const g = 357.529 + 0.98560028 * d;
+  const q = 280.459 + 0.98564736 * d;
+  const l = q + 1.915 * Math.sin(dtr(g)) + 0.02 * Math.sin(dtr(2 * g));
+  const e = 23.439 - 0.00000036 * d;
+  const ra = rtd(Math.atan2(Math.cos(dtr(e)) * Math.sin(dtr(l)), Math.cos(dtr(l)))) / 15;
+  return q / 15 - fixHour(ra);
 }
 
-async function loadDayTime(city: string, country: string, iso: string): Promise<string> {
-  const key = cacheKey(city, country, iso);
-  if (dayCache.has(key)) return dayCache.get(key) ?? '';
-  const pending = dayInflight.get(key);
-  if (pending) return pending;
-  const job = (async () => {
-    try {
-      const body = (await fetchJson(timingsUrl(city, country, iso))) as {
-        data?: { timings?: { Dhuhr?: string } };
-      };
-      const time = parseDhuhr(body.data?.timings?.Dhuhr);
-      if (time) dayCache.set(key, time);
-      return time;
-    } catch {
-      return '';
-    } finally {
-      dayInflight.delete(key);
-    }
-  })();
-  dayInflight.set(key, job);
-  return job;
+function zoneOffsetHours(iso: string, timeZone: string): number {
+  const utc = new Date(`${iso}T12:00:00Z`);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    timeZoneName: 'longOffset',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(utc);
+  const name = parts.find((part) => part.type === 'timeZoneName')?.value ?? '';
+  const match = name.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+  if (!match) return 3;
+  const sign = match[1] === '-' ? -1 : 1;
+  return sign * (Number(match[2]) + Number(match[3] || 0) / 60);
 }
 
-async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
-  if (items.length === 0) return;
-  let index = 0;
-  async function run(): Promise<void> {
-    while (index < items.length) {
-      const current = items[index];
-      index += 1;
-      await worker(current);
-    }
+function placeFor(city: string, country: string): { lat: number; lng: number; tz: string } {
+  const foldedCity = fold(city);
+  for (const entry of CITY_COORDS) {
+    if (entry.keys.some((key) => foldedCity.includes(key) || key.includes(foldedCity))) return entry;
   }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => run()));
+  return COUNTRY_DEFAULT[fold(country)] ?? COUNTRY_DEFAULT.turkey;
 }
 
-function withDeadline(work: Promise<void>, ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(), ms);
-    work.then(
-      () => {
-        clearTimeout(timer);
-        resolve();
-      },
-      () => {
-        clearTimeout(timer);
-        resolve();
-      },
-    );
-  });
+function formatHour(value: number): string {
+  const total = Math.round(fixHour(value) * 60);
+  const h = Math.floor(total / 60) % 24;
+  const m = total % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+export function computeDhuhr(iso: string, city: string, country: string): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  if (!year || !month || !day) return '';
+  const place = placeFor(city, country);
+  const tz = zoneOffsetHours(iso, place.tz);
+  const jd = julian(year, month, day) - place.lng / (15 * 24);
+  const noon = fixHour(12 - equationOfTime(jd));
+  const hours = noon + tz - place.lng / 15;
+  const offsetMin = fold(country) === 'turkey' || place.tz === 'Europe/Istanbul' ? 5 : 0;
+  return formatHour(hours + offsetMin / 60);
 }
 
 export async function attachJumuaTimes(rows: JumuaPlace[]): Promise<void> {
-  const needed = rows.filter((row) => row.jumuaDate && !row.jumuaTime && cleanCity(row.city));
-  if (needed.length === 0) return;
-
-  const jobs: JumuaPlace[] = [];
-  const seen = new Set<string>();
-  for (const row of needed) {
-    const city = cleanCity(row.city);
-    const key = cacheKey(city, row.country, row.jumuaDate);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    jobs.push(row);
-    if (jobs.length >= 8) break;
-  }
-
-  await withDeadline(
-    runPool(jobs, 4, async (row) => {
-      const time = await loadDayTime(cleanCity(row.city), row.country, row.jumuaDate);
-      if (time) row.jumuaTime = time;
-    }),
-    5000,
-  );
-
-  for (const row of needed) {
-    if (row.jumuaTime) continue;
-    const city = cleanCity(row.city);
-    row.jumuaTime = dayCache.get(cacheKey(city, row.country, row.jumuaDate)) ?? '';
+  for (const row of rows) {
+    if (!row.jumuaDate || row.jumuaTime) continue;
+    row.jumuaTime = computeDhuhr(row.jumuaDate, row.city || '', row.country || '');
   }
 }

@@ -10,6 +10,7 @@ export interface LiveFixture {
   away: string;
   score: string;
   status: string;
+  statusShort: string;
   stadium: string;
   city: string;
   weekday: string;
@@ -34,8 +35,93 @@ const MAJOR_LEAGUES: Array<{ country: string; league: string }> = [
   { country: 'World', league: 'UEFA Europa Conference League' },
 ];
 
+const RANGE_LEAGUES = [203, 204, 205, 206, 207];
+const RANGE_SEASON = 2026;
+
+let rangeCache: { key: string; rows: LiveFixture[] } | null = null;
+let rangeInflight: Promise<LiveFixture[]> | null = null;
 let dayCache: { date: string; rows: LiveFixture[] } | null = null;
 let dayInflight: Promise<LiveFixture[]> | null = null;
+
+export function addDaysIso(iso: string, days: number): string {
+  const date = new Date(`${iso}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export function pickBoardFixtures(all: LiveFixture[]): LiveFixture[] {
+  const merged: LiveFixture[] = [];
+  const seen = new Set<string>();
+  for (const fx of all) {
+    if (fx.country !== 'Turkey') continue;
+    const rowKey = `${fx.date}|${fx.time}|${fx.home}|${fx.away}`;
+    if (seen.has(rowKey)) continue;
+    seen.add(rowKey);
+    merged.push(fx);
+  }
+  return merged;
+}
+
+export function splitBoardFixtures(
+  rows: LiveFixture[],
+  today: string,
+): { past: LiveFixture[]; today: LiveFixture[]; upcoming: LiveFixture[] } {
+  const pastFrom = addDaysIso(today, -7);
+  const upcomingTo = addDaysIso(today, 7);
+  const past = rows
+    .filter((fx) => fx.country === 'Turkey' && fx.date < today && fx.date >= pastFrom)
+    .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`))
+    .slice(0, 40);
+  const todayRows = rows
+    .filter((fx) => fx.country === 'Turkey' && fx.date === today)
+    .sort((a, b) => a.time.localeCompare(b.time))
+    .slice(0, 40);
+  const upcoming = rows
+    .filter((fx) => fx.country === 'Turkey' && fx.date > today && fx.date <= upcomingTo)
+    .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
+    .slice(0, 40);
+  return { past, today: todayRows, upcoming };
+}
+
+export async function fetchFixtureRange(from: string, to: string): Promise<LiveFixture[]> {
+  const key = footballKey();
+  if (!key) return [];
+  const cacheKey = `tr|${from}|${to}`;
+  if (rangeCache?.key === cacheKey) return rangeCache.rows;
+  if (rangeInflight) return rangeInflight;
+
+  rangeInflight = (async () => {
+    const chunks: LiveFixture[][] = [];
+    let index = 0;
+    async function worker(): Promise<void> {
+      while (index < RANGE_LEAGUES.length) {
+        const leagueId = RANGE_LEAGUES[index];
+        index += 1;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 6000);
+        try {
+          const res = await fetch(
+            `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=${RANGE_SEASON}&from=${from}&to=${to}&timezone=Europe/Istanbul`,
+            { headers: { 'x-apisports-key': key }, signal: ctrl.signal },
+          );
+          const body = await res.json();
+          if (res.ok) chunks.push(((body.response ?? []) as RawDayFixture[]).map(mapDayFixture));
+        } catch {
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+    }
+    await Promise.all([worker(), worker()]);
+    const rows = pickBoardFixtures(chunks.flat());
+    rangeCache = { key: cacheKey, rows };
+    return rows;
+  })().finally(() => {
+    rangeInflight = null;
+  });
+
+  return rangeInflight;
+}
 
 type RawDayFixture = {
   fixture: {
@@ -62,6 +148,7 @@ function mapDayFixture(fx: RawDayFixture): LiveFixture {
     away: fx.teams.away.name,
     score,
     status: fx.fixture.status.long || fx.fixture.status.short,
+    statusShort: fx.fixture.status.short,
     stadium: fx.fixture.venue?.name?.trim() || '',
     city: fx.fixture.venue?.city?.trim() || '',
     weekday: weekdayFromIso(matchDate),

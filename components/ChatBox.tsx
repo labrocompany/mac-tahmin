@@ -29,6 +29,7 @@ import {
 import { LiveFixture, LiveFixturesFile, fetchDayFixtures, formatLiveFixtures, pickRelevantFixtures, todayInIstanbul } from '@/lib/liveFixtures';
 import { resolveTeamToken } from '@/lib/predictionEngine';
 import { attachJumuaTimes } from '@/lib/prayerTimes';
+import { TablePayload } from './MatchTablePanel';
 
 function todayHijriLabel(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -62,7 +63,6 @@ async function loadLiveRows(hints: string[]): Promise<{ date: string; rows: Live
 
 interface DisplayMessage extends ChatMessage {
   matches?: GeminiMatchRef[];
-  table?: MatchTable;
 }
 
 interface ContextData {
@@ -120,7 +120,7 @@ function formatRecordReply(
   const winPct = ((counts.wins / counts.total) * 100).toFixed(1);
   const lossPct = ((counts.losses / counts.total) * 100).toFixed(1);
   const drawPct = ((counts.draws / counts.total) * 100).toFixed(1);
-  return `${who} ${scope} ${counts.total} maçta ${counts.wins}G ${counts.draws}B ${counts.losses}M. Kazanma oranı %${winPct}, kaybetme oranı %${lossPct}, beraberlik oranı %${drawPct}.`;
+  return `${who} ${scope} ${counts.total} maçta ${counts.wins} Galibiyet ${counts.draws} Beraberlik ${counts.losses} Mağlubiyet. Kazanma oranı %${winPct}, kaybetme oranı %${lossPct}, beraberlik oranı %${drawPct}.`;
 }
 
 function looksLikeTeamToken(token: string): boolean {
@@ -363,8 +363,11 @@ function renderMarkdownTables(text: string) {
             .map((cell) => cell.trim()),
         );
       if (rows.length < 1) return null;
-      const [header, ...body] = rows;
-      return <MatchTableView key={idx} table={{ headers: header, rows: body }} />;
+      return (
+        <div key={idx} className="whitespace-pre-wrap">
+          {block.content.join('\n').trim()}
+        </div>
+      );
     }
     const joined = block.content.join('\n').trim();
     if (!joined) return null;
@@ -376,40 +379,17 @@ function renderMarkdownTables(text: string) {
   });
 }
 
-function MatchTableView({ table }: { table: MatchTable }) {
-  return (
-    <div className="my-2 overflow-x-auto rounded-xl border border-hairline">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-elevated text-inksecondary">
-          <tr>
-            {table.headers.map((cell, i) => (
-              <th key={i} className="px-3 py-2 font-medium whitespace-nowrap">
-                {cell}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-hairline">
-          {table.rows.map((row, rIdx) => (
-            <tr key={rIdx}>
-              {row.map((cell, cIdx) => (
-                <td key={cIdx} className="px-3 py-2 text-ink whitespace-nowrap">
-                  {cell}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-export default function ChatBox() {
+export default function ChatBox({
+  onOpenTable,
+  pickedMatch,
+}: {
+  onOpenTable?: (payload: TablePayload) => void;
+  pickedMatch?: { home: string; away: string; id: number } | null;
+}) {
   const [messages, setMessages] = useState<DisplayMessage[]>([
     {
       role: 'assistant',
-      text: 'Bugün maç var mı diye sorabilirsin. Takım adı da yazabilirsin, canlı verilerle analiz ederim.',
+      text: 'Maç analizi yazabilirsin. Tablolar için Tablo Sistemi sekmesini kullan.',
     },
   ]);
   const [input, setInput] = useState('');
@@ -438,6 +418,11 @@ export default function ChatBox() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, busy]);
+
+  useEffect(() => {
+    if (!pickedMatch) return;
+    void runAnalysis(`${pickedMatch.home} - ${pickedMatch.away} maçını analiz et`, pickedMatch.home, pickedMatch.away);
+  }, [pickedMatch?.id]);
 
   async function runAnalysis(userText: string, overrideTeam1?: string, overrideTeam2?: string) {
     if (!hasGeminiKey()) {
@@ -554,14 +539,10 @@ export default function ChatBox() {
           if (listed.length === 0) listed = lastListedRef.current;
         }
       }
-      const jumuaRows = (listIntent ? listed : [...listed, ...data.team1Recent, ...data.team2Recent, ...data.headToHead]).slice(
-        0,
-        60,
-      );
-      await Promise.race([
-        attachJumuaTimes(jumuaRows),
-        new Promise<void>((resolve) => window.setTimeout(resolve, 400)),
-      ]);
+      const jumuaRows = listIntent
+        ? listed
+        : [...listed, ...data.team1Recent, ...data.team2Recent, ...data.headToHead];
+      await attachJumuaTimes(jumuaRows);
       if (listIntent && !statsFocus && listed.length > 0) {
         table = buildMatchTable(listed.slice(0, 80), dateModeRef.current);
         lastTableRef.current = table;
@@ -649,13 +630,25 @@ export default function ChatBox() {
         chips = packed.table ? [] : chips;
       }
       if (runIdRef.current !== runId) return;
+      if (packed.table && packed.table.rows.length > 0 && onOpenTable) {
+        const counts = countMatchResults(packed.listed);
+        onOpenTable({
+          title: packed.context.listedTitle,
+          table: packed.table,
+          summary: `${counts.total} maç`,
+          counts,
+        });
+        if (listIntent || statsFocus) {
+          reply = 'Maç tablosu Tablo Sistemi sekmesine alındı.';
+          chips = [];
+        }
+      }
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
           text: reply,
           matches: chips,
-          table: packed.table,
         },
       ]);
       setTeam1(t1);
@@ -685,16 +678,16 @@ export default function ChatBox() {
   }
 
   return (
-    <aside className="flex h-[34rem] w-full flex-col overflow-hidden rounded-3xl border border-hairline bg-surface/80 shadow-sm backdrop-blur-xl lg:h-[calc(100vh-3rem)]">
+    <aside className="flex h-[36rem] w-full flex-col overflow-hidden rounded-3xl border border-hairline bg-surface/80 shadow-sm backdrop-blur-xl lg:h-[calc(100vh-18rem)]">
       <div className="border-b border-hairline px-5 py-4">
-        <h2 className="text-sm font-semibold text-ink">Gemini Analiz</h2>
-        <p className="mt-0.5 text-xs text-inksecondary">Canlı API-Football verisiyle maç sohbeti</p>
+        <h2 className="text-sm font-semibold text-ink">Yapay Zeka</h2>
+        <p className="mt-0.5 text-xs text-inksecondary">Maç analizi ve sohbet; tablolar diğer sekmede</p>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
         {messages.map((msg, idx) => (
           <div
             key={`${msg.role}-${idx}`}
-            className={msg.role === 'user' ? 'ml-auto max-w-[85%]' : msg.table ? 'max-w-full' : 'max-w-[92%]'}
+            className={msg.role === 'user' ? 'ml-auto max-w-[85%]' : 'max-w-[92%]'}
           >
             <div
               className={`rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
@@ -704,7 +697,6 @@ export default function ChatBox() {
               }`}
             >
               {renderMarkdownTables(msg.text)}
-              {msg.table && msg.table.rows.length > 0 && <MatchTableView table={msg.table} />}
             </div>
             {msg.matches && msg.matches.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-2">
@@ -728,7 +720,7 @@ export default function ChatBox() {
       <form onSubmit={handleSubmit} className="border-t border-hairline p-4">
         <textarea
           className="mb-3 h-20 w-full resize-none rounded-2xl bg-elevated px-4 py-3 text-sm text-ink outline-none transition focus:ring-4 focus:ring-accentsoft"
-          placeholder="Bugün maç var mı?"
+          placeholder="Maçı analiz et"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
