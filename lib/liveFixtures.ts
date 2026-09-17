@@ -57,11 +57,15 @@ function isBoardLeague(fx: LiveFixture): boolean {
   return false;
 }
 
+function isFinished(fx: LiveFixture): boolean {
+  return /^(FT|AET|PEN|AWD|WO|ABD|CANC|FFT)$/i.test(fx.statusShort || '') || /finish|bit|iptal|walk/i.test(fx.status);
+}
+
 export function pickBoardFixtures(all: LiveFixture[]): LiveFixture[] {
   const merged: LiveFixture[] = [];
   const seen = new Set<string>();
   for (const fx of all) {
-    if (fx.country !== 'Turkey' || !isBoardLeague(fx)) continue;
+    if (fx.country !== 'Turkey' || !isBoardLeague(fx) || isFinished(fx)) continue;
     const rowKey = `${fx.date}|${fx.time}|${fx.home}|${fx.away}`;
     if (seen.has(rowKey)) continue;
     seen.add(rowKey);
@@ -73,22 +77,17 @@ export function pickBoardFixtures(all: LiveFixture[]): LiveFixture[] {
 export function splitBoardFixtures(
   rows: LiveFixture[],
   today: string,
-): { past: LiveFixture[]; today: LiveFixture[]; upcoming: LiveFixture[] } {
-  const pastFrom = addDaysIso(today, -7);
+): { today: LiveFixture[]; upcoming: LiveFixture[] } {
   const upcomingTo = addDaysIso(today, 7);
-  const past = rows
-    .filter((fx) => fx.country === 'Turkey' && isBoardLeague(fx) && fx.date < today && fx.date >= pastFrom)
-    .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`))
-    .slice(0, 40);
   const todayRows = rows
-    .filter((fx) => fx.country === 'Turkey' && isBoardLeague(fx) && fx.date === today)
+    .filter((fx) => fx.country === 'Turkey' && isBoardLeague(fx) && !isFinished(fx) && fx.date === today)
     .sort((a, b) => a.time.localeCompare(b.time))
     .slice(0, 40);
   const upcoming = rows
-    .filter((fx) => fx.country === 'Turkey' && isBoardLeague(fx) && fx.date > today && fx.date <= upcomingTo)
+    .filter((fx) => fx.country === 'Turkey' && isBoardLeague(fx) && !isFinished(fx) && fx.date > today && fx.date <= upcomingTo)
     .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
     .slice(0, 40);
-  return { past, today: todayRows, upcoming };
+  return { today: todayRows, upcoming };
 }
 
 export async function fetchFixtureRange(from: string, to: string): Promise<LiveFixture[]> {

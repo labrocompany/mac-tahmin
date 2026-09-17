@@ -72,7 +72,6 @@ function Section({
 }
 
 export default function MatchWeekBoard({ onPick }: { onPick?: (fx: LiveFixture) => void }) {
-  const [past, setPast] = useState<LiveFixture[]>([]);
   const [today, setToday] = useState<LiveFixture[]>([]);
   const [upcoming, setUpcoming] = useState<LiveFixture[]>([]);
   const [busy, setBusy] = useState(true);
@@ -83,15 +82,13 @@ export default function MatchWeekBoard({ onPick }: { onPick?: (fx: LiveFixture) 
       setBusy(true);
       const day = todayInIstanbul();
       try {
-        const rows = await fetchFixtureRange(addDaysIso(day, -7), addDaysIso(day, 7));
+        const rows = await fetchFixtureRange(day, addDaysIso(day, 7));
         if (cancelled) return;
         const split = splitBoardFixtures(rows, day);
-        setPast(split.past);
         setToday(split.today);
         setUpcoming(split.upcoming);
       } catch {
         if (!cancelled) {
-          setPast([]);
           setToday([]);
           setUpcoming([]);
         }
@@ -109,14 +106,13 @@ export default function MatchWeekBoard({ onPick }: { onPick?: (fx: LiveFixture) 
     <aside className="flex h-[36rem] w-full flex-col overflow-hidden rounded-3xl border border-hairline bg-surface/80 shadow-sm backdrop-blur-xl lg:h-[calc(100vh-8rem)]">
       <div className="border-b border-hairline px-5 py-4">
         <h2 className="text-sm font-semibold text-ink">Haftalık Maçlar</h2>
-        <p className="mt-0.5 text-xs text-inksecondary">Süper Lig ve 1. Lig · 1 hafta önce, bugün ve 1 hafta sonra</p>
+        <p className="mt-0.5 text-xs text-inksecondary">Süper Lig ve 1. Lig · bugün ve 1 hafta sonra</p>
       </div>
       <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4">
         {busy ? (
           <p className="text-sm text-inktertiary">Maçlar yükleniyor...</p>
         ) : (
           <>
-            <Section title="Son 1 hafta" rows={past} onPick={onPick} />
             <Section title="Bugün" rows={today} onPick={onPick} />
             <Section title="Yaklaşan maçlar" rows={upcoming} onPick={onPick} />
           </>
