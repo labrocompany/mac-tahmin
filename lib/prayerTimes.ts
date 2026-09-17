@@ -224,16 +224,16 @@ export function kickoffHijri(
   time: string,
   city: string,
   country: string,
-): { hijri: HijriParts | null; maghribTime: string } {
+): { hijri: HijriParts | null; maghribTime: string; shifted: boolean } {
   const maghribTime = computeMaghrib(isoDate, city, country);
   const base = isoToHijri(isoDate);
-  if (!base) return { hijri: null, maghribTime };
+  if (!base) return { hijri: null, maghribTime, shifted: false };
   const kickoff = time.slice(0, 5);
   if (kickoff && maghribTime && kickoff >= maghribTime) {
     const [day, month, year] = addHijriDays(base.day, base.month, base.year, 1);
-    return { hijri: hijriParts(day, month, year), maghribTime };
+    return { hijri: hijriParts(day, month, year), maghribTime, shifted: true };
   }
-  return { hijri: base, maghribTime };
+  return { hijri: base, maghribTime, shifted: false };
 }
 
 export async function attachJumuaTimes(rows: JumuaPlace[]): Promise<void> {

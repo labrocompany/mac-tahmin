@@ -36,6 +36,7 @@ export interface RecentMatch {
   jumuaDate: string;
   jumuaTime: string;
   maghribTime: string;
+  hijriShifted: boolean;
   result: 'W' | 'D' | 'L';
 }
 
@@ -196,7 +197,7 @@ function toRecentMatch(fx: ApiFixture, teamName: string): RecentMatch {
   const stadium = fx.fixture.venue?.name?.trim() || '';
   const city = fx.fixture.venue?.city?.trim() || '';
   const country = fx.league.country || '';
-  const { hijri, maghribTime } = kickoffHijri(gregorianDate, kickoff, city, country);
+  const { hijri, maghribTime, shifted } = kickoffHijri(gregorianDate, kickoff, city, country);
   return {
     gregorianDate,
     hijriDate: hijri?.label ?? gregorianDate,
@@ -215,6 +216,7 @@ function toRecentMatch(fx: ApiFixture, teamName: string): RecentMatch {
     jumuaDate: fridayOfWeek(gregorianDate),
     jumuaTime: '',
     maghribTime,
+    hijriShifted: shifted,
     result,
   };
 }
@@ -296,13 +298,12 @@ export interface MatchTable {
 }
 
 export function buildMatchTable(rows: RecentMatch[], dateMode: 'gregorian' | 'hijri' | 'both' = 'hijri'): MatchTable {
-  const extraHeaders = ['Lig', 'Gün', 'Stadyum', 'Şehir', 'Cuma Namazı', 'Akşam Namazı'];
+  const extraHeaders = ['Lig', 'Gün', 'Stadyum', 'Şehir', 'Akşam Namazı'];
   const extra = (m: RecentMatch) => [
     m.league || '-',
     m.weekday || '-',
     m.stadium || '-',
     m.city || '-',
-    formatJumuaLabel(m.jumuaDate, m.jumuaTime),
     m.maghribTime || '-',
   ];
   const played = (m: RecentMatch) => {
