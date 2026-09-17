@@ -73,7 +73,17 @@ function parseRetryDelaySeconds(body: unknown): number | null {
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, ms: number): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function askGemini(
@@ -88,7 +98,10 @@ export async function askGemini(
 
   const system = `Sen bir futbol sohbet asistanisin. Turkce konus.
 Sana verilen tum veriler API-Football'dan canli olarak cekiliyor, sabit/eski bir veritabani yok.
-Her mac satirinda hem miladi tarih hem hicri tarih vardir. Hicri ay/gun sorularinda hicri tarihi kullan, miladi tarihten tahmin yurutme.
+Her mac satirinda hem miladi tarih hem hicri tarih, haftanin gunu, stadyum, sehir ve o haftanin cuma namazi tarihi/saati vardir.
+Cuma namazi vakti macin oynandigi sehre gore hesaplanir; stadyum veya sehir yoksa uydurma.
+Hicri ay/gun sorularinda hicri tarihi kullan, miladi tarihten tahmin yurutme.
+Kullanici hicri gun, "her ayin X. gunu", "X. gun" veya belirli bir hicri tarih derse yalnizca "Listelenecek maclar" blogunu kullan. Bu liste zaten hicri gune/aya gore filtrelenmistir. Filtre disi mac ekleme, uydurma veya miladi gune kaydirma.
 "bugun mac var mi" sorularinda yalnizca "Bugunun canli fikstur" listesine bak. Listede yoksa yok de, uydurma.
 Birden fazla mac varsa reply kisa olsun ve "matches" alanina Turkiye maclarini (yoksa listedeki maclari) {"home","away"} olarak ekle; listeyi reply icinde tekrar yazma.
 "bugunku maci analiz et", "bu gunku maci incele" gibi takim adi verilmeyen isteklerde: "Bugunun canli fikstur" listesindeki Turkey (Turkiye) satirlarina bak.
@@ -156,22 +169,32 @@ ${
   };
 
   async function call(): Promise<Response> {
-    return fetch(
+    return fetchWithTimeout(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
       },
+      12000,
     );
   }
 
-  let res = await call();
+  let res: Response;
+  try {
+    res = await call();
+  } catch {
+    throw new Error('Gemini yanit vermedi, tekrar deneyin.');
+  }
   let body = await res.json();
   if (res.status === 429) {
-    const retryAfter = parseRetryDelaySeconds(body) ?? 5;
-    await sleep(Math.min(retryAfter, 30) * 1000);
-    res = await call();
+    const retryAfter = parseRetryDelaySeconds(body) ?? 4;
+    await sleep(Math.min(retryAfter, 5) * 1000);
+    try {
+      res = await call();
+    } catch {
+      throw new Error('Gemini kotasi doldu, biraz sonra tekrar deneyin.');
+    }
     body = await res.json();
   }
 
@@ -191,5 +214,9 @@ ${
   if (!text) {
     throw new Error('Gemini bos cevap dondu');
   }
-  return parseAction(text);
+  try {
+    return parseAction(text);
+  } catch {
+    throw new Error('Gemini gecersiz cevap dondu');
+  }
 }

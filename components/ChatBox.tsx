@@ -26,14 +26,9 @@ import {
   mentionsHijriCalendar,
   resolveHijriMonthFilter,
 } from '@/lib/hijri';
-import {
-  fetchDayFixtures,
-  formatLiveFixtures,
-  LiveFixturesFile,
-  pickRelevantFixtures,
-  todayInIstanbul,
-} from '@/lib/liveFixtures';
+import { LiveFixture, LiveFixturesFile, fetchDayFixtures, formatLiveFixtures, pickRelevantFixtures, todayInIstanbul } from '@/lib/liveFixtures';
 import { resolveTeamToken } from '@/lib/predictionEngine';
+import { attachJumuaTimes } from '@/lib/prayerTimes';
 
 function todayHijriLabel(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -41,26 +36,28 @@ function todayHijriLabel(iso: string): string {
   return `${hd} ${HIJRI_MONTHS[hm - 1]} ${hy}`;
 }
 
-async function loadLiveFixtureText(hints: string[]): Promise<string> {
+async function loadLiveRows(hints: string[]): Promise<{ date: string; rows: LiveFixture[] }> {
   const today = todayInIstanbul();
+  try {
+    const res = await fetch(assetUrl('/data/live-fixtures.json'));
+    if (res.ok) {
+      const file = (await res.json()) as LiveFixturesFile;
+      const rows = pickRelevantFixtures(file.fixtures ?? [], hints);
+      if (file.date === today) return { date: today, rows };
+      if (rows.length > 0 && !hasFootballKey()) {
+        return { date: file.date || today, rows };
+      }
+    }
+  } catch {
+  }
   if (hasFootballKey()) {
     try {
-      const live = pickRelevantFixtures(await fetchDayFixtures(), hints);
-      if (live.length > 0) return formatLiveFixtures(live, today);
+      const rows = pickRelevantFixtures(await fetchDayFixtures(), hints);
+      return { date: today, rows };
     } catch {
     }
   }
-  try {
-    const res = await fetch(assetUrl('/data/live-fixtures.json'));
-    if (!res.ok) return `${today} icin canli fikstur yok`;
-    const file = (await res.json()) as LiveFixturesFile;
-    const rows = pickRelevantFixtures(file.fixtures ?? [], hints);
-    const prefix =
-      file.date && file.date !== today ? `Fikstur tarihi: ${file.date} (bugun ${today})\n` : '';
-    return prefix + formatLiveFixtures(rows, file.date || today);
-  } catch {
-    return 'Canli fikstur okunamadi';
-  }
+  return { date: today, rows: [] };
 }
 
 interface DisplayMessage extends ChatMessage {
@@ -107,24 +104,23 @@ function statsFocusFromText(text: string): StatsFocus | null {
   if (/kazan|galibiyet/.test(t)) return 'wins';
   if (/kaybet|maglub|yenil/.test(t)) return 'losses';
   if (/beraber/.test(t)) return 'draws';
-  if (/kac\s*mac|mac\s*say|toplam\s*mac|kacini\s*oyna|kac\s*tane\s*oyna/.test(t)) return 'played';
+  if (/kac\s*mac|mac\s*say|toplam\s*mac|kacini\s*oyna|kac\s*tane\s*oyna|oran/.test(t)) return 'played';
   return null;
 }
 
-function formatStatsReply(
+function formatRecordReply(
   team: string,
   opponent: string,
   filter: HijriMonthFilter | null,
-  focus: StatsFocus,
   counts: { total: number; wins: number; draws: number; losses: number },
 ): string {
   const who = opponent ? `${team}, ${opponent} karşısında` : team;
   const scope = filter ? `${filter.label} döneminde` : 'elimdeki kayıtlarda';
-  const record = `${counts.total} maçta ${counts.wins}G ${counts.draws}B ${counts.losses}M`;
-  if (focus === 'wins') return `${who} ${scope} toplam ${counts.wins} maç kazanmıştır (${record}).`;
-  if (focus === 'losses') return `${who} ${scope} toplam ${counts.losses} maç kaybetmiştir (${record}).`;
-  if (focus === 'draws') return `${who} ${scope} toplam ${counts.draws} beraberlik almıştır (${record}).`;
-  return `${who} ${scope} toplam ${counts.total} maç oynamıştır (${record}).`;
+  if (counts.total === 0) return `${who} ${scope} maç bulunamadı.`;
+  const winPct = ((counts.wins / counts.total) * 100).toFixed(1);
+  const lossPct = ((counts.losses / counts.total) * 100).toFixed(1);
+  const drawPct = ((counts.draws / counts.total) * 100).toFixed(1);
+  return `${who} ${scope} ${counts.total} maçta ${counts.wins}G ${counts.draws}B ${counts.losses}M. Kazanma oranı %${winPct}, kaybetme oranı %${lossPct}, beraberlik oranı %${drawPct}.`;
 }
 
 function looksLikeTeamToken(token: string): boolean {
@@ -159,6 +155,10 @@ const STOP_TOKENS = new Set([
   'takvim',
   'olarak',
   'ayinda',
+  'ayin',
+  'gunu',
+  'gunde',
+  'gununde',
   'oynadigi',
   'hepsini',
   'analiz',
@@ -239,6 +239,19 @@ function uniqueMatches(rows: GeminiMatchRef[]): GeminiMatchRef[] {
   return out;
 }
 
+function uniqueRecentMatches(rows: RecentMatch[]): RecentMatch[] {
+  const seen = new Set<string>();
+  const out: RecentMatch[] = [];
+  for (const row of rows) {
+    const key = `${row.gregorianDate}|${row.home}|${row.away}|${row.score}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  out.sort((a, b) => b.gregorianDate.localeCompare(a.gregorianDate));
+  return out;
+}
+
 async function fetchContextData(t1: string, t2: string, mode: 'list' | 'analysis'): Promise<ContextData> {
   const data: ContextData = { team1Recent: [], team2Recent: [], headToHead: [], prediction: null };
   if (!hasFootballKey()) return data;
@@ -247,8 +260,16 @@ async function fetchContextData(t1: string, t2: string, mode: 'list' | 'analysis
   try {
     const jobs: Promise<unknown>[] = [];
     if (t1 && t2) {
-      jobs.push(fetchHeadToHeadForTeams(t1, t2).then((r) => (data.headToHead = r)));
-      if (mode === 'analysis') {
+      jobs.push(fetchHeadToHeadForTeams(t1, t2, mode === 'list' ? 200 : 50).then((r) => (data.headToHead = r)));
+      if (mode === 'list') {
+        jobs.push(
+          fetchRecentMatchesForTeam(t1, recentLimit, recentSeasons).then((r) => {
+            data.team1Recent = r;
+            const extra = extractHeadToHead(r, t1, t2);
+            data.headToHead = uniqueRecentMatches([...data.headToHead, ...extra]);
+          }),
+        );
+      } else {
         jobs.push(fetchRecentMatchesForTeam(t1, recentLimit, recentSeasons).then((r) => (data.team1Recent = r)));
         jobs.push(fetchRecentMatchesForTeam(t2, recentLimit, recentSeasons).then((r) => (data.team2Recent = r)));
         jobs.push(fetchPredictionForTeams(t1, t2).then((r) => (data.prediction = r)));
@@ -258,10 +279,14 @@ async function fetchContextData(t1: string, t2: string, mode: 'list' | 'analysis
       if (t2) jobs.push(fetchRecentMatchesForTeam(t2, recentLimit, recentSeasons).then((r) => (data.team2Recent = r)));
     }
     await Promise.allSettled(jobs);
-    if (t1 && t2 && data.headToHead.length === 0 && mode === 'list') {
-      const fallback = await fetchRecentMatchesForTeam(t1, 2000);
-      data.team1Recent = fallback;
-      data.headToHead = extractHeadToHead(fallback, t1, t2);
+    if (t1 && t2 && mode === 'list') {
+      if (data.team1Recent.length === 0) {
+        data.team1Recent = await fetchRecentMatchesForTeam(t1, 2000);
+      }
+      data.headToHead = uniqueRecentMatches([
+        ...data.headToHead,
+        ...extractHeadToHead(data.team1Recent, t1, t2),
+      ]);
     }
   } catch {
   }
@@ -397,6 +422,7 @@ export default function ChatBox() {
   const lastTableRef = useRef<MatchTable | undefined>(undefined);
   const lastListedRef = useRef<RecentMatch[]>([]);
   const monthFilterRef = useRef<HijriMonthFilter | null>(null);
+  const runIdRef = useRef(0);
 
   useEffect(() => {
     fetch(assetUrl('/data/teams.json'))
@@ -414,7 +440,6 @@ export default function ChatBox() {
   }, [messages, busy]);
 
   async function runAnalysis(userText: string, overrideTeam1?: string, overrideTeam2?: string) {
-    if (busy) return;
     if (!hasGeminiKey()) {
       setMessages((prev) => [
         ...prev,
@@ -424,10 +449,22 @@ export default function ChatBox() {
       return;
     }
 
+    const runId = runIdRef.current + 1;
+    runIdRef.current = runId;
     const history = messages.slice(-8);
     setMessages((prev) => [...prev, { role: 'user', text: userText }]);
     setBusy(true);
+    const watchdog = window.setTimeout(() => {
+      if (runIdRef.current !== runId) return;
+      runIdRef.current += 1;
+      setBusy(false);
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', text: 'İstek çok uzun sürdü, tekrar dene.' },
+      ]);
+    }, 18000);
 
+    try {
     const teams = teamsRef.current;
     const found = await resolveTeamsFromText(userText, teams);
 
@@ -444,11 +481,12 @@ export default function ChatBox() {
     let hijriMonth = monthFromText ?? (needHistory ? monthFilterRef.current : null);
     if (
       statsFocus != null &&
-      /toplam/i.test(userText) &&
-      !isCurrentHijriMonthQuery(userText) &&
-      hijriMonthFromText(userText) == null
+      monthFromText == null &&
+      /(t[uü]m|ge[cç]mi[sş])/i.test(userText) &&
+      !isCurrentHijriMonthQuery(userText)
     ) {
       hijriMonth = null;
+      monthFilterRef.current = null;
     }
     if (mentionsHijriCalendar(userText) && /miladi/i.test(userText)) {
       dateModeRef.current = 'both';
@@ -476,15 +514,31 @@ export default function ChatBox() {
       t2 = '';
     }
 
-    const liveFixtures = await loadLiveFixtureText(
-      [t1, t2, ...found].filter((name) => name.length > 0),
-    );
+    const livePack = await loadLiveRows([t1, t2, ...found].filter((name) => name.length > 0));
+    const liveFixtures =
+      livePack.rows.length === 0
+        ? `${livePack.date} icin listede mac yok`
+        : `${livePack.date !== today ? `Fikstur tarihi: ${livePack.date} (bugun ${today})\n` : ''}${formatLiveFixtures(livePack.rows, livePack.date)}`;
 
-    function assemble(
+    const todayOnly =
+      isTodayQuery(userText) && found.length === 0 && overrideTeam1 == null && !listIntent && statsFocus == null;
+    if (todayOnly) {
+      const turkey = livePack.rows.filter((fx) => fx.country === 'Turkey');
+      const pool = turkey.length > 0 ? turkey : livePack.rows;
+      const chips = uniqueMatches(pool.slice(0, 16).map((fx) => ({ home: fx.home, away: fx.away })));
+      let reply = 'Bugün listede maç yok.';
+      if (pool.length === 1) reply = `Bugün ${pool[0].home} - ${pool[0].away} maçı var.`;
+      else if (pool.length > 1) reply = 'Bugün birden fazla maç var, aşağıdan birini seçebilirsin.';
+      if (runIdRef.current !== runId) return;
+      setMessages((prev) => [...prev, { role: 'assistant', text: reply, matches: chips }]);
+      return;
+    }
+
+    async function assemble(
       ct1: string,
       ct2: string,
       data: ContextData,
-    ): { context: GeminiContext; listed: RecentMatch[]; table?: MatchTable } {
+    ): Promise<{ context: GeminiContext; listed: RecentMatch[]; table?: MatchTable }> {
       let listed = pickListedMatches(data, ct1, ct2, hijriMonth);
       const title = listedTitle(ct1, ct2, hijriMonth, dateModeRef.current);
       let table: MatchTable | undefined;
@@ -499,11 +553,19 @@ export default function ChatBox() {
           listed = pickListedMatches(data, ct1, ct2, null);
           if (listed.length === 0) listed = lastListedRef.current;
         }
-        if (listed.length > 0) {
-          table = buildMatchTable(listed, dateModeRef.current);
-          lastTableRef.current = table;
-          lastListedRef.current = listed;
-        }
+      }
+      const jumuaRows = (listIntent ? listed : [...listed, ...data.team1Recent, ...data.team2Recent, ...data.headToHead]).slice(
+        0,
+        60,
+      );
+      await Promise.race([
+        attachJumuaTimes(jumuaRows),
+        new Promise<void>((resolve) => window.setTimeout(resolve, 400)),
+      ]);
+      if (listIntent && !statsFocus && listed.length > 0) {
+        table = buildMatchTable(listed.slice(0, 80), dateModeRef.current);
+        lastTableRef.current = table;
+        lastListedRef.current = listed;
       }
       return {
         listed,
@@ -524,13 +586,13 @@ export default function ChatBox() {
       };
     }
 
-    try {
       let data = await fetchContextData(t1, t2, needHistory ? 'list' : 'analysis');
-      let packed = assemble(t1, t2, data);
+      let packed = await assemble(t1, t2, data);
       let action: GeminiAction = { reply: '', team1: t1 || null, team2: t2 || null, matches: [] };
       const canAnswerStats = statsFocus != null && (t1.length > 0 || packed.listed.length > 0 || lastListedRef.current.length > 0);
+      const canAnswerHijriList = listIntent && hijriMonth != null && t1.length > 0;
 
-      if (!canAnswerStats) {
+      if (!canAnswerStats && !canAnswerHijriList) {
         action = await askGemini(history, userText, packed.context);
         const nextT1 = action.team1 || t1;
         let nextT2 = t2;
@@ -543,7 +605,7 @@ export default function ChatBox() {
           t1 = nextT1;
           t2 = nextT2;
           data = await fetchContextData(t1, t2, needHistory ? 'list' : 'analysis');
-          packed = assemble(t1, t2, data);
+          packed = await assemble(t1, t2, data);
           if (!(statsFocus != null && t1)) {
             action = await askGemini(history, userText, packed.context);
           }
@@ -552,13 +614,9 @@ export default function ChatBox() {
 
       let chips = packed.table ? [] : uniqueMatches(action.matches).slice(0, 16);
       if (chips.length === 0 && isTodayQuery(userText) && !packed.table) {
-        try {
-          const live = pickRelevantFixtures(await fetchDayFixtures(), [t1, t2, ...found].filter(Boolean));
-          const turkey = live.filter((fx) => fx.country === 'Turkey');
-          const pool = turkey.length > 0 ? turkey : live;
-          chips = uniqueMatches(pool.slice(0, 16).map((fx) => ({ home: fx.home, away: fx.away })));
-        } catch {
-        }
+        const turkey = livePack.rows.filter((fx) => fx.country === 'Turkey');
+        const pool = turkey.length > 0 ? turkey : livePack.rows;
+        chips = uniqueMatches(pool.slice(0, 16).map((fx) => ({ home: fx.home, away: fx.away })));
       }
       let reply = action.reply || 'Tamam.';
       if (listIntent) {
@@ -580,14 +638,17 @@ export default function ChatBox() {
               : statsFocus === 'draws'
                 ? rows.filter((row) => row.result === 'D')
                 : rows;
-        reply = formatStatsReply(t1 || 'Bu takım', t2, hijriMonth, statsFocus, counts);
+        reply = formatRecordReply(t1 || 'Bu takım', t2, hijriMonth, counts);
         if (focused.length > 0 && focused.length <= 40) {
           packed.table = buildMatchTable(focused, dateModeRef.current);
         }
         chips = packed.table ? [] : chips;
-      } else if (listIntent && !packed.table && hijriMonth != null) {
-        reply = `${hijriMonth.label} tarihinde bu takımların maçı bulunamadı.`;
+      } else if (listIntent && hijriMonth != null) {
+        const counts = countMatchResults(packed.listed);
+        reply = formatRecordReply(t1 || 'Bu takım', t2, hijriMonth, counts);
+        chips = packed.table ? [] : chips;
       }
+      if (runIdRef.current !== runId) return;
       setMessages((prev) => [
         ...prev,
         {
@@ -600,25 +661,26 @@ export default function ChatBox() {
       setTeam1(t1);
       setTeam2(t2);
     } catch (error) {
+      if (runIdRef.current !== runId) return;
       setMessages((prev) => [
         ...prev,
         { role: 'assistant', text: `Gemini hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}` },
       ]);
     } finally {
-      setBusy(false);
+      window.clearTimeout(watchdog);
+      if (runIdRef.current === runId) setBusy(false);
     }
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     const text = input.trim();
-    if (!text || busy) return;
+    if (!text) return;
     setInput('');
     await runAnalysis(text);
   }
 
   async function handleMatchClick(match: GeminiMatchRef) {
-    if (busy) return;
     await runAnalysis(`${match.home} - ${match.away} maçını analiz et`, match.home, match.away);
   }
 
@@ -650,7 +712,6 @@ export default function ChatBox() {
                   <button
                     key={`${m.home}-${m.away}-${mIdx}`}
                     type="button"
-                    disabled={busy}
                     onClick={() => handleMatchClick(m)}
                     className="rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-ink transition hover:border-accent hover:bg-accentsoft hover:text-accent disabled:opacity-40"
                   >
@@ -679,8 +740,7 @@ export default function ChatBox() {
         />
         <button
           type="submit"
-          disabled={busy}
-          className="w-full rounded-full bg-accent py-3 text-sm font-medium text-white transition hover:bg-accenthover disabled:opacity-40"
+          className="w-full rounded-full bg-accent py-3 text-sm font-medium text-white transition hover:bg-accenthover"
         >
           Gönder
         </button>

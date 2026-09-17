@@ -1,5 +1,6 @@
 import { assetUrl } from './config';
 import { isoToHijri } from './hijri';
+import { formatJumuaLabel, formatTrDate, fridayOfWeek, weekdayFromIso } from './prayerTimes';
 import { foldName, resolveTeamName } from './teamMap';
 
 const API_BASE = 'https://v3.football.api-sports.io';
@@ -11,6 +12,7 @@ export interface ApiFixture {
     id: number;
     date: string;
     status: { short: string; long?: string };
+    venue?: { id?: number | null; name?: string | null; city?: string | null } | null;
   };
   league: { id: number; name: string; country: string };
   teams: { home: { id: number; name: string }; away: { id: number; name: string } };
@@ -27,7 +29,13 @@ export interface RecentMatch {
   away: string;
   score: string;
   league: string;
+  country: string;
   venue: 'Ev' | 'Deplasman';
+  stadium: string;
+  city: string;
+  weekday: string;
+  jumuaDate: string;
+  jumuaTime: string;
   result: 'W' | 'D' | 'L';
 }
 
@@ -54,17 +62,24 @@ export async function apiGet<T>(path: string): Promise<T> {
   if (!key) {
     throw new Error('API_FOOTBALL_KEY yok');
   }
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'x-apisports-key': key },
-  });
-  const body = (await res.json()) as ApiEnvelope<T> & { errors?: unknown };
-  if (!res.ok) {
-    throw new Error(`API HTTP ${res.status}`);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: { 'x-apisports-key': key },
+      signal: ctrl.signal,
+    });
+    const body = (await res.json()) as ApiEnvelope<T> & { errors?: unknown };
+    if (!res.ok) {
+      throw new Error(`API HTTP ${res.status}`);
+    }
+    if (body.errors && !Array.isArray(body.errors) && Object.keys(body.errors as object).length > 0) {
+      throw new Error(JSON.stringify(body.errors));
+    }
+    return body.response;
+  } finally {
+    clearTimeout(timer);
   }
-  if (body.errors && !Array.isArray(body.errors) && Object.keys(body.errors as object).length > 0) {
-    throw new Error(JSON.stringify(body.errors));
-  }
-  return body.response;
 }
 
 const fixtureCache = new Map<string, ApiFixture[]>();
@@ -99,7 +114,7 @@ export async function fetchHeadToHead(id1: number, id2: number): Promise<ApiFixt
   if (cached) return cached;
   try {
     const rows = await apiGet<ApiFixture[]>(
-      `/fixtures/headtohead?h2h=${id1}-${id2}&timezone=Europe/Istanbul`,
+      `/fixtures/headtohead?h2h=${id1}-${id2}&last=200&timezone=Europe/Istanbul`,
     );
     const finished = (rows ?? []).filter((fx) => FINISHED.has(fx.fixture.status.short));
     fixtureCache.set(cacheKey, finished);
@@ -178,6 +193,8 @@ function toRecentMatch(fx: ApiFixture, teamName: string): RecentMatch {
   else result = 'L';
   const gregorianDate = fx.fixture.date.slice(0, 10);
   const hijri = isoToHijri(gregorianDate);
+  const stadium = fx.fixture.venue?.name?.trim() || '';
+  const city = fx.fixture.venue?.city?.trim() || '';
   return {
     gregorianDate,
     hijriDate: hijri?.label ?? gregorianDate,
@@ -188,7 +205,13 @@ function toRecentMatch(fx: ApiFixture, teamName: string): RecentMatch {
     away: resolveTeamName(fx.teams.away.name, []),
     score: `${hg}-${ag}`,
     league: fx.league.name,
+    country: fx.league.country || '',
     venue: isHome ? 'Ev' : 'Deplasman',
+    stadium,
+    city,
+    weekday: weekdayFromIso(gregorianDate),
+    jumuaDate: fridayOfWeek(gregorianDate),
+    jumuaTime: '',
     result,
   };
 }
@@ -206,7 +229,7 @@ export async function fetchRecentMatchesForTeam(
   return rows.slice(0, limit);
 }
 
-export async function fetchHeadToHeadForTeams(name1: string, name2: string, limit = 50): Promise<RecentMatch[]> {
+export async function fetchHeadToHeadForTeams(name1: string, name2: string, limit = 200): Promise<RecentMatch[]> {
   const [id1, id2] = await Promise.all([resolveApiTeamId(name1), resolveApiTeamId(name2)]);
   if (id1 == null || id2 == null) return [];
   const fixtures = await fetchHeadToHead(id1, id2);
@@ -215,12 +238,13 @@ export async function fetchHeadToHeadForTeams(name1: string, name2: string, limi
   return rows.slice(0, limit);
 }
 
-export function formatRecentMatches(rows: RecentMatch[]): string {
+export function formatRecentMatches(rows: RecentMatch[], limit = 40): string {
   if (rows.length === 0) return 'Yok';
   return rows
+    .slice(0, limit)
     .map(
       (m) =>
-        `${m.gregorianDate} | ${m.hijriDate} | ${m.home} ${m.score} ${m.away} [${m.league}, ${m.venue} ${m.result}]`,
+        `${m.gregorianDate} | ${m.hijriDate} | ${m.weekday} | ${m.home} ${m.score} ${m.away} [${m.venue} ${m.result}, ${m.stadium || '-'}, ${m.city || '-'}, Cuma namazi ${formatJumuaLabel(m.jumuaDate, m.jumuaTime)}]`,
     )
     .join('\n');
 }
@@ -269,21 +293,32 @@ export interface MatchTable {
 }
 
 export function buildMatchTable(rows: RecentMatch[], dateMode: 'gregorian' | 'hijri' | 'both' = 'hijri'): MatchTable {
+  const extraHeaders = ['Gün', 'Stadyum', 'Şehir', 'Cuma Namazı'];
+  const extra = (m: RecentMatch) => [
+    m.weekday || '-',
+    m.stadium || '-',
+    m.city || '-',
+    formatJumuaLabel(m.jumuaDate, m.jumuaTime),
+  ];
+  const played = (m: RecentMatch) => {
+    const dateLabel = formatTrDate(m.gregorianDate);
+    return m.weekday ? `${m.weekday} ${dateLabel}` : dateLabel;
+  };
   if (dateMode === 'gregorian') {
     return {
-      headers: ['Tarih', 'Ev Sahibi', 'Skor', 'Deplasman', 'Lig'],
-      rows: rows.map((m) => [m.gregorianDate, m.home, m.score, m.away, m.league]),
+      headers: ['Oynandığı Tarih', 'Ev Sahibi', 'Skor', 'Deplasman', ...extraHeaders],
+      rows: rows.map((m) => [played(m), m.home, m.score, m.away, ...extra(m)]),
     };
   }
   if (dateMode === 'hijri') {
     return {
-      headers: ['Hicri Tarih', 'Ev Sahibi', 'Skor', 'Deplasman', 'Lig'],
-      rows: rows.map((m) => [m.hijriDate, m.home, m.score, m.away, m.league]),
+      headers: ['Hicri Tarih', 'Ev Sahibi', 'Skor', 'Deplasman', 'Oynandığı Tarih', ...extraHeaders],
+      rows: rows.map((m) => [m.hijriDate, m.home, m.score, m.away, played(m), ...extra(m)]),
     };
   }
   return {
-    headers: ['Hicri Tarih', 'Miladi', 'Ev Sahibi', 'Skor', 'Deplasman', 'Lig'],
-    rows: rows.map((m) => [m.hijriDate, m.gregorianDate, m.home, m.score, m.away, m.league]),
+    headers: ['Hicri Tarih', 'Oynandığı Tarih', 'Ev Sahibi', 'Skor', 'Deplasman', ...extraHeaders],
+    rows: rows.map((m) => [m.hijriDate, played(m), m.home, m.score, m.away, ...extra(m)]),
   };
 }
 

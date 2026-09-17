@@ -1,13 +1,20 @@
 import { footballKey } from './apiFootball';
+import { formatJumuaLabel, fridayOfWeek, weekdayFromIso } from './prayerTimes';
 
 export interface LiveFixture {
   time: string;
+  date: string;
   league: string;
   country: string;
   home: string;
   away: string;
   score: string;
   status: string;
+  stadium: string;
+  city: string;
+  weekday: string;
+  jumuaDate: string;
+  jumuaTime: string;
 }
 
 export interface LiveFixturesFile {
@@ -26,6 +33,42 @@ const MAJOR_LEAGUES: Array<{ country: string; league: string }> = [
   { country: 'World', league: 'UEFA Europa League' },
   { country: 'World', league: 'UEFA Europa Conference League' },
 ];
+
+let dayCache: { date: string; rows: LiveFixture[] } | null = null;
+let dayInflight: Promise<LiveFixture[]> | null = null;
+
+type RawDayFixture = {
+  fixture: {
+    date: string;
+    status: { short: string; long: string };
+    venue?: { name?: string | null; city?: string | null } | null;
+  };
+  league: { name: string; country: string };
+  teams: { home: { name: string }; away: { name: string } };
+  goals: { home: number | null; away: number | null };
+};
+
+function mapDayFixture(fx: RawDayFixture): LiveFixture {
+  const homeGoals = fx.goals.home;
+  const awayGoals = fx.goals.away;
+  const score = homeGoals == null || awayGoals == null ? '-' : `${homeGoals}-${awayGoals}`;
+  const matchDate = fx.fixture.date.slice(0, 10);
+  return {
+    time: fx.fixture.date.slice(11, 16),
+    date: matchDate,
+    league: fx.league.name,
+    country: fx.league.country,
+    home: fx.teams.home.name,
+    away: fx.teams.away.name,
+    score,
+    status: fx.fixture.status.long || fx.fixture.status.short,
+    stadium: fx.fixture.venue?.name?.trim() || '',
+    city: fx.fixture.venue?.city?.trim() || '',
+    weekday: weekdayFromIso(matchDate),
+    jumuaDate: fridayOfWeek(matchDate),
+    jumuaTime: '',
+  };
+}
 
 export function todayInIstanbul(): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -80,44 +123,35 @@ export function pickRelevantFixtures(all: LiveFixture[], hints: string[] = []): 
 export async function fetchDayFixtures(): Promise<LiveFixture[]> {
   const key = footballKey();
   if (!key) return [];
-
   const date = todayInIstanbul();
-  let res: Response;
-  try {
-    res = await fetch(
-      `https://v3.football.api-sports.io/fixtures?date=${date}&timezone=Europe/Istanbul`,
-      { headers: { 'x-apisports-key': key } },
-    );
-  } catch {
-    return [];
-  }
-  const body = await res.json();
-  if (!res.ok || (body.errors && !Array.isArray(body.errors) && Object.keys(body.errors).length > 0)) {
-    return [];
-  }
+  if (dayCache && dayCache.date === date) return dayCache.rows;
+  if (dayInflight) return dayInflight;
 
-  return (body.response ?? []).map(
-    (fx: {
-      fixture: { date: string; status: { short: string; long: string } };
-      league: { name: string; country: string };
-      teams: { home: { name: string }; away: { name: string } };
-      goals: { home: number | null; away: number | null };
-    }) => {
-      const homeGoals = fx.goals.home;
-      const awayGoals = fx.goals.away;
-      const score =
-        homeGoals == null || awayGoals == null ? '-' : `${homeGoals}-${awayGoals}`;
-      return {
-        time: fx.fixture.date.slice(11, 16),
-        league: fx.league.name,
-        country: fx.league.country,
-        home: fx.teams.home.name,
-        away: fx.teams.away.name,
-        score,
-        status: fx.fixture.status.long || fx.fixture.status.short,
-      };
-    },
-  );
+  dayInflight = (async () => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const res = await fetch(
+        `https://v3.football.api-sports.io/fixtures?date=${date}&timezone=Europe/Istanbul`,
+        { headers: { 'x-apisports-key': key }, signal: ctrl.signal },
+      );
+      const body = await res.json();
+      if (!res.ok || (body.errors && !Array.isArray(body.errors) && Object.keys(body.errors).length > 0)) {
+        return [];
+      }
+      const rows = ((body.response ?? []) as RawDayFixture[]).map(mapDayFixture);
+      dayCache = { date, rows };
+      return rows;
+    } catch {
+      return dayCache?.date === date ? dayCache.rows : [];
+    } finally {
+      clearTimeout(timer);
+    }
+  })().finally(() => {
+    dayInflight = null;
+  });
+
+  return dayInflight;
 }
 
 export async function fetchTodayFixtures(teamHints: string[] = []): Promise<LiveFixture[]> {
@@ -132,7 +166,7 @@ export function formatLiveFixtures(rows: LiveFixture[], date: string): string {
   return rows
     .map(
       (fx) =>
-        `${fx.time} ${fx.country} ${fx.league}: ${fx.home} ${fx.score} ${fx.away} (${fx.status})`,
+        `${fx.time} ${fx.weekday || ''} ${fx.date} ${fx.country}: ${fx.home} ${fx.score} ${fx.away} (${fx.stadium || '-'}, ${fx.city || '-'}, Cuma namazi ${formatJumuaLabel(fx.jumuaDate || '', fx.jumuaTime || '')}) (${fx.status})`,
     )
     .join('\n');
 }
